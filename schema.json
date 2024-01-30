@@ -27,7 +27,7 @@
             "enum": ["less", "less_or_equal", "equal", "approx"]
           },
           "quantity": {
-            "description": "Quantity of the measure as a float with 1.0 being the reference value",
+            "description": "Quantity of the measure as a float with 1.0 being the reference value (may be `null` if no meaningful quantity was found)",
             "type": "number",
             "minimum": 0.0
           }

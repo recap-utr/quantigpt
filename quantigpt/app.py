@@ -1,6 +1,7 @@
 import asyncio
+import random
 from pathlib import Path
-from typing import Annotated, Any, Mapping, Optional
+from typing import Annotated, Any, Mapping
 
 import openai
 import orjson
@@ -9,6 +10,8 @@ from openai._types import NOT_GIVEN, NotGiven
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat import ChatCompletionMessageParam as ChatMessage
 from openai.types.chat.completion_create_params import Function, FunctionCall
+
+random.seed(0)
 
 app = typer.Typer()
 
@@ -19,44 +22,75 @@ with Path("./schema.json").open("rb") as fp:
 
 Dataset = Mapping[str, Any]
 Datasets = Mapping[str, Dataset]
+Prediction = dict[str, Any]
+Predictions = list[Prediction]
+PredictionsMap = Mapping[str, Predictions]
+
+
+@app.command()
+def prettify(dataset_path: Path, predictions_path: Path) -> None:
+    raw_data = orjson.loads(dataset_path.read_bytes())
+    datasets: Datasets = {}
+
+    for dataset in raw_data.values():
+        datasets |= dataset
+
+    predictions_map: PredictionsMap = orjson.loads(predictions_path.read_bytes())
+
+    # TODO: print predictions with the dataset in a nice way
 
 
 @app.command()
 def run(
-    path: Path,
-    ids: Annotated[
-        Optional[list[str]], typer.Option(..., "--id", default_factory=list)
-    ],
+    input_path: Path,
+    output_path: Path,
+    ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
+    sample_size: float = 1.0,
     model: str = "gpt-3.5-turbo",
 ):
-    raw_data = orjson.loads(path.read_bytes())
-    data = {}
+    assert not (ids and sample_size < 1.0)
+    assert input_path.suffix == ".json"
+    assert output_path.suffix == ".json"
+
+    raw_data = orjson.loads(input_path.read_bytes())
+    datasets: Datasets = {}
 
     for dataset in raw_data.values():
-        data |= dataset
+        datasets |= dataset
 
-    asyncio.run(run_async(data, ids or [], model))
-
-
-async def run_async(datasets: Datasets, ids: list[str], model: str):
     if ids:
         datasets = {k: v for k, v in datasets.items() if k in ids}
+    elif sample_size < 1.0:
+        sample = random.sample(list(datasets), int(len(datasets) * sample_size))
+        datasets = {k: v for k, v in datasets.items() if k in sample}
 
-    return await asyncio.gather(
-        *(process_dataset(id, dataset, model) for id, dataset in datasets.items())
+    predictions = asyncio.run(run_async(datasets, model))
+
+    with output_path.open("wb") as fp:
+        fp.write(orjson.dumps(predictions))
+
+
+async def run_async(datasets: Datasets, model: str) -> PredictionsMap:
+    return dict(
+        await asyncio.gather(
+            *(process_dataset(id, dataset, model) for id, dataset in datasets.items())
+        )
     )
 
 
-async def process_dataset(id: str, dataset: Dataset, model: str):
+async def process_dataset(
+    id: str, dataset: Dataset, model: str
+) -> tuple[str, Predictions]:
     user_prompt = orjson.dumps(
         {
-            "claim": dataset["claim"],
             "premise": " ".join(dataset["premise_sentences"]),
+            "claim": dataset["claim"],
             "stance": dataset["stance"].lower(),
-            "premise_matches": [
+            "pattern_matches": [
                 {
                     "premise_sentence": entry["sentence_text"],
                     "pattern_name": entry["pattern_name"],
+                    "pattern": entry["pattern_string"],
                     "operator": entry["operator"],
                 }
                 for entry in dataset["matching_sentences"]
@@ -66,8 +100,8 @@ async def process_dataset(id: str, dataset: Dataset, model: str):
     system_prompt = """
 You will be provided with a claim, its premise, and the stance between them.
 The goal is to extract quantity statements from the premise.
-To make it easier for you, I already extracted sentences from the premise along with the operator.
-Based on this information, you should be able to extract the quantity statements for each premise match.
+To make it easier for you, I used pattern to extract sentences containing some operator from the premise.
+Based on this information, you should be able to extract the quantity statements for each provided match.
 """
 
     res = await fetch_openai(
@@ -80,9 +114,11 @@ Based on this information, you should be able to extract the quantity statements
 
     assert res.function_call is not None
 
-    args = orjson.loads(res.function_call.arguments)
+    statements: list[dict[str, Any]] = orjson.loads(res.function_call.arguments)[
+        "statements"
+    ]
 
-    print(f"{id}: {args}")
+    return id, statements
 
 
 async def fetch_openai(
