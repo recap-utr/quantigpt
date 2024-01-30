@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Quantitative statements",
+  "description": "Extract quantitative statements from a text",
+  "type": "object",
+  "properties": {
+    "statements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_1": {
+            "description": "First entity extracted from the text",
+            "type": "string"
+          },
+          "entity_2": {
+            "description": "Second entity extracted from the text",
+            "type": "string"
+          },
+          "measure": {
+            "description": "Name of the measure of comparison",
+            "type": "string"
+          },
+          "comparison": {
+            "description": "Type of comparison between the two entities",
+            "type": "string",
+            "enum": ["less", "less_or_equal", "equal", "approx"]
+          },
+          "quantity": {
+            "description": "Quantity of the measure as a float with 1.0 being the reference value",
+            "type": "number",
+            "minimum": 0.0
+          }
+        }
+      }
+    }
+  }
+}
