@@ -8,26 +8,34 @@
       "type": "array",
       "items": {
         "type": "object",
+        "required": ["entity_1", "entity_2", "trait", "operator", "quantity"],
         "properties": {
           "entity_1": {
-            "description": "First entity extracted from the text",
+            "description": "Short name of the first entity to be compared (typically one or two words, do not include the trait name)",
             "type": "string"
           },
           "entity_2": {
-            "description": "Second entity extracted from the text",
+            "description": "Short name of the second entity to be compared (typically one or two words, do not include the trait name)",
             "type": "string"
           },
-          "measure": {
-            "description": "Name of the measure of comparison",
+          "trait": {
+            "description": "The trait/characteristic being compared between the two entities (one word)",
             "type": "string"
           },
-          "comparison": {
-            "description": "Type of comparison between the two entities",
+          "operator": {
+            "description": "Operator used to compare the trait between the two entities (`approx` and `equal` may ONLY be used with `quantity` of 1.0, otherwise use one of the other operators)",
             "type": "string",
-            "enum": ["less", "less_or_equal", "equal", "approx"]
+            "enum": [
+              "less",
+              "less_or_equal",
+              "equal",
+              "approx",
+              "greater_or_equal",
+              "greater"
+            ]
           },
           "quantity": {
-            "description": "Quantity of the measure as a float with 1.0 being the reference value (may be `null` if no meaningful quantity was found)",
+            "description": "Quantity of the operator as a float with 1.0 being the reference value (use `0.0` if no meaningful quantity can be found)",
             "type": "number",
             "minimum": 0.0
           }
