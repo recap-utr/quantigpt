@@ -26,18 +26,39 @@ Prediction = dict[str, Any]
 Predictions = list[Prediction]
 PredictionsMap = Mapping[str, Predictions]
 
+operator_map: dict[str, str] = {
+    "greater": ">",
+    "less": "<",
+    "equal": "=",
+    "approx": "≈",
+    "greater_or_equal": ">=",
+    "less_or_equal": "<=",
+}
+
 
 @app.command()
-def prettify(dataset_path: Path, predictions_path: Path) -> None:
-    raw_data = orjson.loads(dataset_path.read_bytes())
-    datasets: Datasets = {}
+def prettify(
+    input_path: Path,
+    output_path: Path,
+) -> None:
+    loaded_output = orjson.loads(output_path.read_bytes())
+    assert len(loaded_output) == 1
+    corpus: str = next(iter(loaded_output))
 
-    for dataset in raw_data.values():
-        datasets |= dataset
+    predictions_map: PredictionsMap = loaded_output[corpus]
+    datasets: Datasets = orjson.loads(input_path.read_bytes())[corpus]
 
-    predictions_map: PredictionsMap = orjson.loads(predictions_path.read_bytes())
+    for id, predictions in predictions_map.items():
+        dataset = datasets[id]
+        print(f"{dataset['claim']} ({dataset['stance']}, {id}):")
 
-    # TODO: print predictions with the dataset in a nice way
+        for prediction in predictions:
+            operator = operator_map[prediction["operator"]]
+            print(
+                f"  - [{prediction['entity_1']} {operator} {prediction['entity_2']}]: [{prediction['trait']}]-[{prediction['quantity']}]".lower()
+            )
+
+        print()
 
 
 @app.command()
