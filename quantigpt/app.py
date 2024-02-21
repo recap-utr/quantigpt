@@ -11,7 +11,7 @@ from openai.types.chat import ChatCompletionMessage
 from openai.types.chat import ChatCompletionMessageParam as ChatMessage
 from openai.types.chat.completion_create_params import Function, FunctionCall
 
-random.seed(0)
+random.seed(42)
 
 app = typer.Typer()
 
