@@ -45,29 +45,27 @@ def run(
     input_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
-    sample_size: float = 1.0,
-    model: str = "gpt-3.5-turbo",
+    corpus: Annotated[str, typer.Option(...)],
+    sample: float = 1.0,
+    model: str = "gpt-4-turbo-preview",
 ):
-    assert not (ids and sample_size < 1.0)
+    assert not (ids and sample < 1.0)
     assert input_path.suffix == ".json"
     assert output_path.suffix == ".json"
 
-    raw_data = orjson.loads(input_path.read_bytes())
-    datasets: Datasets = {}
+    corpora = orjson.loads(input_path.read_bytes())
+    datasets: Datasets = corpora[corpus]
 
-    for dataset in raw_data.values():
-        datasets |= dataset
+    if sample < 1.0:
+        ids = random.sample(list(datasets), int(len(datasets) * sample))
 
     if ids:
         datasets = {k: v for k, v in datasets.items() if k in ids}
-    elif sample_size < 1.0:
-        sample = random.sample(list(datasets), int(len(datasets) * sample_size))
-        datasets = {k: v for k, v in datasets.items() if k in sample}
 
     predictions = asyncio.run(run_async(datasets, model))
 
     with output_path.open("wb") as fp:
-        fp.write(orjson.dumps(predictions))
+        fp.write(orjson.dumps({corpus: predictions}))
 
 
 async def run_async(datasets: Datasets, model: str) -> PredictionsMap:
