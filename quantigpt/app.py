@@ -1,7 +1,7 @@
 import asyncio
 import random
 from pathlib import Path
-from typing import Annotated, Any, Mapping
+from typing import Annotated, Any, Mapping, Optional
 
 import openai
 import orjson
@@ -50,35 +50,59 @@ def prettify(
 
     for id, predictions in predictions_map.items():
         dataset = datasets[id]
-        print(f"{dataset['claim']} ({dataset['stance']}, {id}):")
+        print(f"Claim: {dataset['claim'].strip()}")
+        print(f"Stance: {dataset['stance'].lower()}")
 
-        for prediction in predictions:
-            operator = operator_map[prediction["operator"]]
-            print(
-                f"  - [{prediction['entity_1']} {operator} {prediction['entity_2']}]: [{prediction['trait']}]-[{prediction['quantity']}]".lower()
+        for input_match in dataset["matching_sentences"]:
+            prediction = next(
+                (
+                    x
+                    for x in predictions
+                    if x["premise_id"] == input_match["sentence_id"]
+                ),
+                None,
             )
+            formatted_prediction = "n/a"
+
+            if prediction is not None:
+                operator = operator_map.get(prediction.get("operator", ""), "n/a")
+                quantity = prediction.get("quantity", "n/a")
+                entity1 = prediction.get("entity_1", "n/a")
+                entity2 = prediction.get("entity_2", "n/a")
+                trait = prediction.get("trait", "n/a")
+                formatted_prediction = (
+                    f"'{entity1}' {operator} '{entity2}': {quantity}x {trait}".lower()
+                )
+
+            print(f"- Premise: {input_match['sentence_text']}")
+            print(f"  Prediction: {formatted_prediction}")
 
         print()
 
 
 @app.command()
-def run(
+def predict(
     input_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
     corpus: Annotated[str, typer.Option(...)],
-    sample: float = 1.0,
+    sample_size: Optional[int] = None,
+    skip_first: Optional[int] = None,
     model: str = "gpt-4-turbo-preview",
 ):
-    assert not (ids and sample < 1.0)
+    assert not (ids and sample_size)
+    assert not (ids and skip_first)
     assert input_path.suffix == ".json"
     assert output_path.suffix == ".json"
 
     corpora = orjson.loads(input_path.read_bytes())
     datasets: Datasets = corpora[corpus]
 
-    if sample < 1.0:
-        ids = random.sample(list(datasets), int(len(datasets) * sample))
+    dataset_ids = list(datasets.keys())
+    random.shuffle(dataset_ids)
+
+    if sample_size:
+        ids = random.sample(dataset_ids, sample_size)
 
     if ids:
         datasets = {k: v for k, v in datasets.items() if k in ids}
@@ -102,11 +126,12 @@ async def process_dataset(
 ) -> tuple[str, Predictions]:
     user_prompt = orjson.dumps(
         {
-            "premise": " ".join(dataset["premise_sentences"]),
+            "premises": dataset["premise_sentences"],
             "claim": dataset["claim"],
             "stance": dataset["stance"].lower(),
             "pattern_matches": [
                 {
+                    "premise_id": entry["sentence_id"],
                     "premise_sentence": entry["sentence_text"],
                     "pattern_name": entry["pattern_name"],
                     "pattern": entry["pattern_string"],
@@ -121,6 +146,7 @@ You will be provided with a claim, its premise, and the stance between them.
 The goal is to extract quantity statements from the premise.
 To make it easier for you, I used pattern to extract sentences containing some operator from the premise.
 Based on this information, you should be able to extract the quantity statements for each provided match.
+The premise id will later be used to match the extracted quantity statements with the provided premise, so make sure to keep it.
 """
 
     res = await fetch_openai(
@@ -136,6 +162,8 @@ Based on this information, you should be able to extract the quantity statements
     statements: list[dict[str, Any]] = orjson.loads(res.function_call.arguments)[
         "statements"
     ]
+
+    print(f"Processed {id}")
 
     return id, statements
 

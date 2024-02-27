@@ -8,8 +8,19 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["entity_1", "entity_2", "trait", "operator", "quantity"],
+        "required": [
+          "premise_id",
+          "entity_1",
+          "entity_2",
+          "trait",
+          "operator",
+          "quantity"
+        ],
         "properties": {
+          "premise_id": {
+            "description": "ID of the premise from which the statement was extracted",
+            "type": "integer"
+          },
           "entity_1": {
             "description": "Short name of the first entity to be compared (typically one or two words, do not include the trait name)",
             "type": "string"
