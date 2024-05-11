@@ -151,7 +151,10 @@ As a starting point, a pattern-based approach has been used to identify sentence
 The operator indicates the relationship between two currently unknown entities in the sentence.
 As additional context, you are provided the entire regex pattern that matched the sentence together with the operator.
 Your goal is to extract all relevant information to call the function `predict_quantity_statements`.
-The premise id will later be used to match the extracted quantity statements with the provided premise, so make sure to keep it.
+
+If `quantity == 1.0`, the operator `equal` or `approx` must be used.
+If `quantity` is any other value, the operator must be one of the other four options.
+The `premise_id` will later be used to match the extracted quantity statements with the provided premise, so make sure to keep it.
 """
 
     res = await fetch_openai(
