@@ -133,7 +133,7 @@ def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) 
                     if wiki_table is not None:
                         found = True
                         count_tableId += 1
-                        final_table_id = str(premise_id) + "_" + str(count_tableId)
+                        final_table_id = str(arg_id) + "_" + str(premise_id) + "_" + str(count_tableId)
 
                         map_tableId_tableContent[final_table_id] = wiki_table
 
