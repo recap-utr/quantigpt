@@ -84,7 +84,7 @@ def prettify(
 
 
 @app.command()
-def validate(input_path: Path, output_path_csv: Path, output_path_tables) -> None:
+def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) -> None:
     output = [
         [
             "premise_id",
@@ -153,7 +153,7 @@ def validate(input_path: Path, output_path_csv: Path, output_path_tables) -> Non
 
     # write tables with their ids
     for table_id in map_tableId_tableContent:
-        file = Path("data", output_path_tables, f"{table_id}.html")
+        file = Path(output_path_tables, f"{table_id}.html")
 
         with file.open("w", encoding="utf-8") as fp:
             fp.write(str(map_tableId_tableContent[table_id]))
