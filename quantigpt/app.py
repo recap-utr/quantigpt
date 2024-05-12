@@ -23,8 +23,6 @@ random.seed(42)
 
 app = typer.Typer()
 
-client = openai.AsyncOpenAI()
-
 with Path("./schema.json").open("rb") as fp:
     schema = orjson.loads(fp.read())
 
@@ -172,6 +170,7 @@ def predict(
     skip_first: Optional[int] = None,
     model: str = "gpt-4-turbo-preview",
 ):
+
     assert not (ids and sample_size)
     assert not (ids and skip_first)
     assert input_path.suffix == ".json"
@@ -266,6 +265,7 @@ async def fetch_openai(
         "content": user_prompt,
     }
 
+    client = openai.AsyncOpenAI()  # TODO: make it efficient
     response = await client.chat.completions.create(
         model=model,
         messages=[system_message, user_message],
