@@ -84,7 +84,7 @@ def prettify(
 
 
 @app.command()
-def validate(input_path: Path, output_path: Path) -> None:
+def validate(input_path: Path, output_path_csv: Path, output_path_tables) -> None:
     output = [
         [
             "premise_id",
@@ -145,7 +145,7 @@ def validate(input_path: Path, output_path: Path) -> None:
             if not found:
                 output.append(line)
 
-    with output_path.open("w", newline="\n") as fp:
+    with output_path_csv.open("w", newline="\n") as fp:
         csv_writer = csv.writer(
             fp, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL
         )
@@ -153,7 +153,7 @@ def validate(input_path: Path, output_path: Path) -> None:
 
     # write tables with their ids
     for table_id in map_tableId_tableContent:
-        file = Path("data", "wikipedia_tables", f"{table_id}.html")
+        file = Path("data", output_path_tables, f"{table_id}.html")
 
         with file.open("w", encoding="utf-8") as fp:
             fp.write(str(map_tableId_tableContent[table_id]))
