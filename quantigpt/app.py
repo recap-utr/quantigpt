@@ -1,7 +1,6 @@
 import asyncio
 import csv
 import json
-import os.path
 import random
 from pathlib import Path
 from typing import Annotated, Any, Mapping, Optional
@@ -103,8 +102,9 @@ def validate(input_path: Path, output_path: Path) -> None:
     count_tableId = 0
     map_tableId_tableContent = {}
 
-    json_file = open(input_path)
-    data = json.load(json_file)
+    with input_path.open("r") as fp:
+        data = json.load(fp)
+
     for arg_id in data["args"]:
         for premise in data["args"][arg_id]:
             premise_id = premise["premise_id"]
@@ -117,18 +117,7 @@ def validate(input_path: Path, output_path: Path) -> None:
             line = [premise_id, entity_1, entity_2, trait, operator, quantity]
 
             # identify Wikipedia pages by Google search
-            query_url_string = (
-                "https://www.google.com/search?q="
-                + "wikipedia"
-                + "+"
-                + str(entity_1)
-                + "+"
-                + str(trait)
-                + "+"
-                + str(quantity)
-                + "+"
-                "times" + "+" + str(operator) + "+" + "than" + "+" + str(entity_2)
-            )
+            query_url_string = f"https://www.google.com/search?q=wikipedia+{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}"
 
             found = False
             for url in search(query_url_string, stop=30):
@@ -144,6 +133,8 @@ def validate(input_path: Path, output_path: Path) -> None:
                         final_table_id = str(premise_id) + "_" + str(count_tableId)
 
                         map_tableId_tableContent[final_table_id] = wiki_table
+
+                        assert soup.title is not None
                         title = soup.title.text
 
                         output.append(line + [url, title, final_table_id])
@@ -151,22 +142,18 @@ def validate(input_path: Path, output_path: Path) -> None:
             if not found:
                 output.append(line)
 
-    with open(output_path, "w", newline="\n") as csvfile:
+    with output_path.open("w", newline="\n") as fp:
         csv_writer = csv.writer(
-            csvfile, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL
+            fp, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL
         )
         csv_writer.writerows(output)
-        csvfile.flush()
-        csvfile.close()
 
     # write tables with their ids
     for table_id in map_tableId_tableContent:
-        file = open(
-            os.path.join("data", "wikipedia_tables", str(table_id) + ".html"), "w"
-        )
-        file.write(str(map_tableId_tableContent[table_id]))
-        file.flush()
-        file.close()
+        file = Path("data", "wikipedia_tables", f"{table_id}.html")
+
+        with file.open("w", encoding="utf-8") as fp:
+            fp.write(str(map_tableId_tableContent[table_id]))
 
 
 @app.command()
