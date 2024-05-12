@@ -3,7 +3,7 @@ import csv
 import json
 import random
 from pathlib import Path
-from typing import Annotated, Any, Mapping, Optional
+from typing import Annotated, Any, Mapping, Optional, cast
 
 import openai
 import orjson
@@ -120,13 +120,16 @@ def validate(input_path: Path, output_path: Path) -> None:
             query_url_string = f"https://www.google.com/search?q=wikipedia+{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}"
 
             found = False
-            for url in search(query_url_string, stop=30):
-                thepage = requests.get(url)
-                soup = BeautifulSoup(thepage.text, "html.parser")
+
+            for url in search(query_url_string, num_results=30):
+                url = cast(str, url)
 
                 if "wikipedia" in url:
+                    thepage = requests.get(url)
+                    soup = BeautifulSoup(thepage.text, "html.parser")
                     # extract tables from Wikipedia
                     wiki_table = soup.find("table", {"class": "wikitable"})
+
                     if wiki_table is not None:
                         found = True
                         count_tableId += 1
