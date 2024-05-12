@@ -1,7 +1,15 @@
 import asyncio
+import csv
+import json
+import os.path
 import random
 from pathlib import Path
 from typing import Annotated, Any, Mapping, Optional
+
+import requests
+from googlesearch import search
+import urllib
+from bs4 import BeautifulSoup
 
 import openai
 import orjson
@@ -78,6 +86,80 @@ def prettify(
             print(f"  Prediction: {formatted_prediction}")
 
         print()
+
+
+@app.command()
+def validate(
+    input_path: Path,
+    output_path: Path
+) -> None:
+
+    output = [['premise_id', 'entity_1', 'entity_2', 'trait', 'operator', 'quantity', 'wikipedia_url', 'wikipedia_title', 'wikipedia_table_id']]
+
+    count_tableId = 0
+    map_tableId_tableContent = {}
+
+    json_file = open(input_path)
+    data = json.load(json_file)
+    for arg_id in data['args']:
+        for premise in data['args'][arg_id]:
+
+            premise_id = premise['premise_id']
+            entity_1 = premise['entity_1']
+            entity_2 = premise['entity_2']
+            trait = premise['trait']
+            operator = premise['operator']
+            quantity = premise['quantity']
+
+            line = [
+                premise_id,
+                entity_1,
+                entity_2,
+                trait,
+                operator,
+                quantity
+            ]
+
+            # identify Wikipedia pages by Google search
+            query_url_string = ('https://www.google.com/search?q=' + str('wikipedia') + str('+') + str(entity_1) + '+' + str(trait) + '+' + str(quantity) + '+' 'times' + '+' + str(operator) + '+' + 'than' + '+' + str(entity_2))
+
+            found = False
+            for url in search(query_url_string, stop=30):
+                thepage = requests.get(url)
+                soup = BeautifulSoup(thepage.text, "html.parser")
+
+                if 'wikipedia' in url:
+                    # extract tables from Wikipedia
+                    wiki_table = soup.find('table', {'class': "wikitable"})
+                    if wiki_table is not None:
+                        found = True
+                        count_tableId += 1
+                        final_table_id = str(premise_id) + '_' + str(count_tableId)
+
+                        map_tableId_tableContent[final_table_id] = wiki_table
+                        title = soup.title.text
+
+                        output.append(
+                            line + [url, title, final_table_id]
+                        )
+
+            if not found:
+                output.append(line)
+
+
+    with open(output_path, 'w', newline='\n') as csvfile:
+        csv_writer = csv.writer(csvfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        csv_writer.writerows(output)
+        csvfile.flush()
+        csvfile.close()
+
+    # write tables with their ids
+    for table_id in map_tableId_tableContent:
+        file = open(os.path.join('data', 'wikipedia_tables', str(table_id) + '.html'), "w")
+        file.write(str(map_tableId_tableContent[table_id]))
+        file.flush()
+        file.close()
+
 
 
 @app.command()
