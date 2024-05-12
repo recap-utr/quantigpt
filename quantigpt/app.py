@@ -119,9 +119,9 @@ def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) 
             # identify Wikipedia pages by Google search
             query_url_string = f"https://www.google.com/search?q=wikipedia+{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}"
 
-            found = False
+            urls_found = 0
 
-            for url in search(query_url_string, num_results=30):
+            for url in search(query_url_string, stop=100):
                 url = cast(str, url)
 
                 if "wikipedia" in url:
@@ -131,7 +131,6 @@ def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) 
                     wiki_table = soup.find("table", {"class": "wikitable"})
 
                     if wiki_table is not None:
-                        found = True
                         count_tableId += 1
                         final_table_id = str(arg_id) + "_" + str(premise_id) + "_" + str(count_tableId)
 
@@ -142,7 +141,11 @@ def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) 
 
                         output.append(line + [url, title, final_table_id])
 
-            if not found:
+                        urls_found += 1
+                        if urls_found >= 10:
+                            break
+
+            if urls_found == 0:
                 output.append(line)
 
     with output_path_csv.open("w", newline="\n") as fp:
