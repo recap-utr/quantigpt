@@ -223,11 +223,19 @@ async def process_dataset(
         }
     ).decode()
     system_prompt = """
+You are an assistant that extracts quantitative statements from arguments.
+Each argument consists of a claim (a statement that is being argued) and a premise (a statement that supports or attacks the claim).
+The stance indicates whether the premise supports or attacks the claim.
 You will be provided with a claim, its premise, and the stance between them.
-The goal is to extract quantity statements from the premise.
-To make it easier for you, I used pattern to extract sentences containing some operator from the premise.
-Based on this information, you should be able to extract the quantity statements for each provided match.
-The premise id will later be used to match the extracted quantity statements with the provided premise, so make sure to keep it.
+Your goal is to extract the quantity statements from the premise that are relevant to the claim.
+As a starting point, a pattern-based approach has been used to identify sentences in the premise that contain some free-form operator.
+The operator indicates the relationship between two currently unknown entities in the sentence.
+As additional context, you are provided the entire regex pattern that matched the sentence together with the operator.
+Your goal is to extract all relevant information to call the function `predict_quantity_statements`.
+
+If `quantity == 1.0`, the operator `equal` or `approx` must be used.
+If `quantity` is any other value, the operator must be one of the other four options.
+The `premise_id` will later be used to match the extracted quantity statements with the provided premise, so make sure to keep it.
 """
 
     res = await fetch_openai(

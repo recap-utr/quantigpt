@@ -34,7 +34,7 @@
             "type": "string"
           },
           "operator": {
-            "description": "Operator used to compare the trait between the two entities (`approx` and `equal` may ONLY be used with `quantity` of 1.0, otherwise use one of the other operators)",
+            "description": "Operator used to compare the trait between the two entities.",
             "type": "string",
             "enum": [
               "less",
