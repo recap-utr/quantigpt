@@ -6,14 +6,12 @@ import random
 from pathlib import Path
 from typing import Annotated, Any, Mapping, Optional
 
-import requests
-from googlesearch import search
-import urllib
-from bs4 import BeautifulSoup
-
 import openai
 import orjson
+import requests
 import typer
+from bs4 import BeautifulSoup
+from googlesearch import search
 from openai._types import NOT_GIVEN, NotGiven
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat import ChatCompletionMessageParam as ChatMessage
@@ -87,77 +85,88 @@ def prettify(
 
 
 @app.command()
-def validate(
-    input_path: Path,
-    output_path: Path
-) -> None:
-
-    output = [['premise_id', 'entity_1', 'entity_2', 'trait', 'operator', 'quantity', 'wikipedia_url', 'wikipedia_title', 'wikipedia_table_id']]
+def validate(input_path: Path, output_path: Path) -> None:
+    output = [
+        [
+            "premise_id",
+            "entity_1",
+            "entity_2",
+            "trait",
+            "operator",
+            "quantity",
+            "wikipedia_url",
+            "wikipedia_title",
+            "wikipedia_table_id",
+        ]
+    ]
 
     count_tableId = 0
     map_tableId_tableContent = {}
 
     json_file = open(input_path)
     data = json.load(json_file)
-    for arg_id in data['args']:
-        for premise in data['args'][arg_id]:
+    for arg_id in data["args"]:
+        for premise in data["args"][arg_id]:
+            premise_id = premise["premise_id"]
+            entity_1 = premise["entity_1"]
+            entity_2 = premise["entity_2"]
+            trait = premise["trait"]
+            operator = premise["operator"]
+            quantity = premise["quantity"]
 
-            premise_id = premise['premise_id']
-            entity_1 = premise['entity_1']
-            entity_2 = premise['entity_2']
-            trait = premise['trait']
-            operator = premise['operator']
-            quantity = premise['quantity']
-
-            line = [
-                premise_id,
-                entity_1,
-                entity_2,
-                trait,
-                operator,
-                quantity
-            ]
+            line = [premise_id, entity_1, entity_2, trait, operator, quantity]
 
             # identify Wikipedia pages by Google search
-            query_url_string = ('https://www.google.com/search?q=' + str('wikipedia') + str('+') + str(entity_1) + '+' + str(trait) + '+' + str(quantity) + '+' 'times' + '+' + str(operator) + '+' + 'than' + '+' + str(entity_2))
+            query_url_string = (
+                "https://www.google.com/search?q="
+                + "wikipedia"
+                + "+"
+                + str(entity_1)
+                + "+"
+                + str(trait)
+                + "+"
+                + str(quantity)
+                + "+"
+                "times" + "+" + str(operator) + "+" + "than" + "+" + str(entity_2)
+            )
 
             found = False
             for url in search(query_url_string, stop=30):
                 thepage = requests.get(url)
                 soup = BeautifulSoup(thepage.text, "html.parser")
 
-                if 'wikipedia' in url:
+                if "wikipedia" in url:
                     # extract tables from Wikipedia
-                    wiki_table = soup.find('table', {'class': "wikitable"})
+                    wiki_table = soup.find("table", {"class": "wikitable"})
                     if wiki_table is not None:
                         found = True
                         count_tableId += 1
-                        final_table_id = str(premise_id) + '_' + str(count_tableId)
+                        final_table_id = str(premise_id) + "_" + str(count_tableId)
 
                         map_tableId_tableContent[final_table_id] = wiki_table
                         title = soup.title.text
 
-                        output.append(
-                            line + [url, title, final_table_id]
-                        )
+                        output.append(line + [url, title, final_table_id])
 
             if not found:
                 output.append(line)
 
-
-    with open(output_path, 'w', newline='\n') as csvfile:
-        csv_writer = csv.writer(csvfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    with open(output_path, "w", newline="\n") as csvfile:
+        csv_writer = csv.writer(
+            csvfile, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL
+        )
         csv_writer.writerows(output)
         csvfile.flush()
         csvfile.close()
 
     # write tables with their ids
     for table_id in map_tableId_tableContent:
-        file = open(os.path.join('data', 'wikipedia_tables', str(table_id) + '.html'), "w")
+        file = open(
+            os.path.join("data", "wikipedia_tables", str(table_id) + ".html"), "w"
+        )
         file.write(str(map_tableId_tableContent[table_id]))
         file.flush()
         file.close()
-
 
 
 @app.command()
@@ -170,6 +179,7 @@ def predict(
     skip_first: Optional[int] = None,
     model: str = "gpt-4-turbo-preview",
 ):
+    client = openai.AsyncOpenAI()
 
     assert not (ids and sample_size)
     assert not (ids and skip_first)
@@ -188,22 +198,27 @@ def predict(
     if ids:
         datasets = {k: v for k, v in datasets.items() if k in ids}
 
-    predictions = asyncio.run(run_async(datasets, model))
+    predictions = asyncio.run(run_async(datasets, client, model))
 
     with output_path.open("wb") as fp:
         fp.write(orjson.dumps({corpus: predictions}))
 
 
-async def run_async(datasets: Datasets, model: str) -> PredictionsMap:
+async def run_async(
+    datasets: Datasets, client: openai.AsyncClient, model: str
+) -> PredictionsMap:
     return dict(
         await asyncio.gather(
-            *(process_dataset(id, dataset, model) for id, dataset in datasets.items())
+            *(
+                process_dataset(id, dataset, client, model)
+                for id, dataset in datasets.items()
+            )
         )
     )
 
 
 async def process_dataset(
-    id: str, dataset: Dataset, model: str
+    id: str, dataset: Dataset, client: openai.AsyncClient, model: str
 ) -> tuple[str, Predictions]:
     user_prompt = orjson.dumps(
         {
@@ -239,6 +254,7 @@ The `premise_id` will later be used to match the extracted quantity statements w
 """
 
     res = await fetch_openai(
+        client,
         model,
         user_prompt,
         system_prompt,
@@ -258,6 +274,7 @@ The `premise_id` will later be used to match the extracted quantity statements w
 
 
 async def fetch_openai(
+    client: openai.AsyncClient,
     model: str,
     user_prompt: str,
     system_prompt: str,
@@ -273,7 +290,6 @@ async def fetch_openai(
         "content": user_prompt,
     }
 
-    client = openai.AsyncOpenAI()  # TODO: make it efficient
     response = await client.chat.completions.create(
         model=model,
         messages=[system_message, user_message],
