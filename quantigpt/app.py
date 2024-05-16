@@ -212,7 +212,7 @@ def validate(input_path: Path, output_path_json: Path) -> None:
 # https://stackoverflow.com/a/57128498
 def _remove_all_attrs(soup):
     for tag in soup.find_all(True):
-        if tag.text == "a" and "href" in tag.attrs:  # TODO: test, ob href jetzt drin bleibt und nicht zu viel style übernommen wird.
+        if tag.text == "a" and "href" in tag.attrs:
             continue
         else:
             tag.attrs = {}
