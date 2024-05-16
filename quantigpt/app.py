@@ -1,7 +1,8 @@
 import asyncio
-import csv
 import json
+import os.path
 import random
+import time
 from pathlib import Path
 from typing import Annotated, Any, Mapping, Optional, cast
 
@@ -15,6 +16,8 @@ from openai._types import NOT_GIVEN, NotGiven
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat import ChatCompletionMessageParam as ChatMessage
 from openai.types.chat.completion_create_params import Function, FunctionCall
+from rank_bm25 import BM25Okapi
+from tqdm import tqdm
 
 random.seed(42)
 
@@ -84,29 +87,31 @@ def prettify(
 
 
 @app.command()
-def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) -> None:
-    output = [
-        [
-            "premise_id",
-            "entity_1",
-            "entity_2",
-            "trait",
-            "operator",
-            "quantity",
-            "wikipedia_url",
-            "wikipedia_title",
-            "wikipedia_table_id",
-        ]
-    ]
+def validate(input_path: Path, output_path_json: Path) -> None:
 
+    # init
     count_tableId = 0
-    map_tableId_tableContent = {}
+    map_argId_premise = {}
+
+
+    checkpoints_file = open(os.path.join('data', 'checkpoints.log'), 'a+')
+    checkpoints_set = set(checkpoints_file.readlines())
 
     with input_path.open("r") as fp:
         data = json.load(fp)
 
-    for arg_id in data["args"]:
+    # iterate each argument
+    for arg_id in tqdm(data["args"], desc='arg_id'):
+
+        # update checkpoints
+        if arg_id in checkpoints_set:
+            continue
+
+        map_argId_premise[arg_id] = []
+
         for premise in data["args"][arg_id]:
+
+            # extract data
             premise_id = premise["premise_id"]
             entity_1 = premise["entity_1"]
             entity_2 = premise["entity_2"]
@@ -114,52 +119,118 @@ def validate(input_path: Path, output_path_csv: Path, output_path_tables: Path) 
             operator = premise["operator"]
             quantity = premise["quantity"]
 
-            line = [premise_id, entity_1, entity_2, trait, operator, quantity]
+            # init extended premise node
+            node_premise_with_source = {}
+            node_premise_with_source.update(premise)
+            node_premise_with_source['results'] = []
+
+            # sleep
+            time.sleep(60)
+            random_sleep_interval = random.randint(50, 60)
 
             # identify Wikipedia pages by Google search
-            query_url_string = f"https://www.google.com/search?q=wikipedia+{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}"
-
-            urls_found = 0
-
-            for url in search(query_url_string, stop=100):
+            google_search_string = f"{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}+site%3Aen.wikipedia.org"  # TODO: "site%3Aen.wikipedia.org" does not work, i.e., it finds other languages, e.g., German as well.
+            for result in search(google_search_string, lang='en', sleep_interval=random_sleep_interval, timeout=120, advanced=True, num_results=10):
+                url = result.url
                 url = cast(str, url)
 
-                if "wikipedia" in url:
-                    thepage = requests.get(url)
-                    soup = BeautifulSoup(thepage.text, "html.parser")
-                    # extract tables from Wikipedia
-                    wiki_table = soup.find("table", {"class": "wikitable"})
+                snippet_title = result.title
+                snippet_description = result.description
 
-                    if wiki_table is not None:
-                        count_tableId += 1
-                        final_table_id = str(arg_id) + "_" + str(premise_id) + "_" + str(count_tableId)
+                # assign wiki results
+                premise_result = {'url': url,
+                                  'title': snippet_title,
+                                  'google_snippet_description': snippet_description}
 
-                        map_tableId_tableContent[final_table_id] = wiki_table
+                thepage = requests.get(url)
+                soup = BeautifulSoup(thepage.text, "html.parser")
 
-                        assert soup.title is not None
-                        title = soup.title.text
 
-                        output.append(line + [url, title, final_table_id])
+                # more context identified by google search snippet in Wikipedia article
+                paragraphs = soup.text.split('\n\n')
+                tokenized_corpus = [doc.split(" ") for doc in paragraphs]
+                bm25 = BM25Okapi(tokenized_corpus)
+                tokenized_query = snippet_description.split(" ")
+                doc_scores = bm25.get_scores(tokenized_query)
+                best_position = -1
+                best_score = -1.
+                current_position = 0
+                for score in doc_scores:
+                    if best_position == -1 or float(score) > best_score:
+                        best_position = current_position
+                        best_score = float(score)
+                    current_position += 1
+                context_found_by_snippet = paragraphs[best_position]
+                premise_result['context_found_by_snippet'] = context_found_by_snippet
 
-                        urls_found += 1
-                        if urls_found >= 10:
-                            break
 
-            if urls_found == 0:
-                output.append(line)
+                # short summary of Wikipedia article (text before first headline)
+                content_div_abstract = ''
 
-    with output_path_csv.open("w", newline="\n") as fp:
-        csv_writer = csv.writer(
-            fp, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL
-        )
-        csv_writer.writerows(output)
+                for paragraph in soup.select('#mw-content-text > .mw-parser-output > p'):
+                    content_div_abstract += paragraph.get_text() + '\n'
+                    if paragraph.find_next_sibling().name == 'h2':
+                        break
 
-    # write tables with their ids
-    for table_id in map_tableId_tableContent:
-        file = Path(output_path_tables, f"{table_id}.html")
+                premise_result['summary'] = content_div_abstract
 
-        with file.open("w", encoding="utf-8") as fp:
-            fp.write(str(map_tableId_tableContent[table_id]))
+
+                # Short description in html
+                html_short_description = soup.find("div", {"class": "shortdescription nomobile noexcerpt noprint searchaux"})
+                premise_result['short_description'] = html_short_description.text if html_short_description else ''
+
+
+                # extract tables from Wikipedia
+                wiki_tables = soup.find_all("table", {"class": "wikitable"})
+                premise_result['wiki_tables'] = []
+                for wiki_table in wiki_tables:
+                    count_tableId += 1
+                    final_table_id = str(arg_id) + "_" + str(premise_id) + "_" + str(count_tableId)
+
+                    premise_wiki_table = {'final_table_id': final_table_id,
+                                          'wiki_table': str(_remove_all_attrs(wiki_table))}
+
+                    premise_result['wiki_tables'].append(premise_wiki_table)
+
+                node_premise_with_source['results'].append(premise_result)
+
+            map_argId_premise[arg_id].append(
+                node_premise_with_source
+            )
+
+            # intermediate storage and update checkpoints
+            with open(output_path_json, "w+") as outfile:
+                json.dump(map_argId_premise, outfile, cls=ComplexEncoder, default=default_json, indent=4)
+
+            if arg_id not in checkpoints_set:
+                checkpoints_file.write(arg_id)
+                checkpoints_file.write('\n')
+                checkpoints_file.flush()
+
+
+
+# https://stackoverflow.com/a/57128498
+def _remove_all_attrs(soup):
+    for tag in soup.find_all(True):
+        if tag.text == "a" and "href" in tag.attrs:  # TODO: test, ob href jetzt drin bleibt und nicht zu viel style übernommen wird.
+            continue
+        else:
+            tag.attrs = {}
+    return soup
+
+
+# https://www.sethserver.com/python/typeerror-object-not-json-serializable.html
+def default_json(t):
+    return f'{t}'
+
+
+# https://docs.python.org/3/library/json.html#encoders-and-decoders
+class ComplexEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, complex):
+            return [obj.real, obj.imag]
+        # Let the base class default method raise the TypeError
+        return super().default(obj)
 
 
 @app.command()
