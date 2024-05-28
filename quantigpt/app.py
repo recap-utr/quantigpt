@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os.path
 import random
 import time
 from pathlib import Path
@@ -23,7 +22,7 @@ random.seed(42)
 
 app = typer.Typer()
 
-with Path("./schema.json").open("rb") as fp:
+with Path("./schema.json").open("rb", encoding="utf-8") as fp:
     schema = orjson.loads(fp.read())
 
 Dataset = Mapping[str, Any]
@@ -87,16 +86,20 @@ def prettify(
 
 
 @app.command()
-def validate(input_path: Path, output_path_json: Path) -> None:
+def validate(
+    input_path: Path,
+    output_path: Path,
+    checkpoints_path: Path = Path("data/validate-checkpoints.log"),
+) -> None:
     # init
     count_tableId = 0
     map_argId_premise = {}
 
-    checkpoints_file = open(os.path.join("data", "checkpoints.log"), "a+")
-    checkpoints_set = set(checkpoints_file.readlines())
+    with checkpoints_path.open("r", encoding="utf-8") as fp:
+        checkpoints_set = set(fp.readlines())
 
-    with input_path.open("r") as fp:
-        data = json.load(fp)
+    with input_path.open("b", encoding="utf-8") as fp:
+        data = orjson.loads(fp.read())
 
     # iterate each argument
     for arg_id in tqdm(data["args"], desc="arg_id"):
@@ -214,19 +217,18 @@ def validate(input_path: Path, output_path_json: Path) -> None:
             map_argId_premise[arg_id].append(node_premise_with_source)
 
             # intermediate storage and update checkpoints
-            with open(output_path_json, "w+") as outfile:
+            with output_path.open("w", encoding="utf-8") as fp:
                 json.dump(
                     map_argId_premise,
-                    outfile,
+                    fp,
                     cls=ComplexEncoder,
                     default=str,
                     indent=4,
                 )
 
             if arg_id not in checkpoints_set:
-                checkpoints_file.write(arg_id)
-                checkpoints_file.write("\n")
-                checkpoints_file.flush()
+                with checkpoints_path.open("a", encoding="utf-8") as fp:
+                    fp.write(arg_id + "\n")
 
 
 # https://stackoverflow.com/a/57128498
@@ -279,7 +281,7 @@ def predict(
 
     predictions = asyncio.run(run_async(datasets, client, model))
 
-    with output_path.open("wb") as fp:
+    with output_path.open("wb", encoding="utf-8") as fp:
         fp.write(orjson.dumps({corpus: predictions}))
 
 
