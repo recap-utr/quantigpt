@@ -22,7 +22,7 @@ random.seed(42)
 
 app = typer.Typer()
 
-with Path("./schema.json").open("rb", encoding="utf-8") as fp:
+with Path("./schema.json").open("r", encoding="utf-8") as fp:
     schema = orjson.loads(fp.read())
 
 Dataset = Mapping[str, Any]
@@ -98,7 +98,7 @@ def validate(
     with checkpoints_path.open("r", encoding="utf-8") as fp:
         checkpoints_set = set(fp.readlines())
 
-    with input_path.open("b", encoding="utf-8") as fp:
+    with input_path.open("r", encoding="utf-8") as fp:
         data = orjson.loads(fp.read())
 
     # iterate each argument
