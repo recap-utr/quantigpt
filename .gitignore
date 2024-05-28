@@ -227,5 +227,5 @@ poetry.toml
 .python-version
 /data/argument_data
 /data/input.json
-/data/args-me-1.0-cleaned.json
+/data/argument_data/args-me-1.0-cleaned.json
 .idea/
