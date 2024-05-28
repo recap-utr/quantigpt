@@ -91,10 +91,11 @@ def validate(
     # init
     count_tableId = 0
     map_argId_premise = {}
+    checkpoints_set = set()
 
-    fp = open(checkpoints_path, "w+")
-    with checkpoints_path.open("r", encoding="utf-8") as fp:
-        checkpoints_set = set(fp.readlines())
+    if checkpoints_path.exists():
+        with checkpoints_path.open("r", encoding="utf-8") as fp:
+            checkpoints_set = set(fp.readlines())
 
     with input_path.open("r", encoding="utf-8") as fp:
         data = orjson.loads(fp.read())
