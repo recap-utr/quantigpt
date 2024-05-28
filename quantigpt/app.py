@@ -222,7 +222,6 @@ def validate(
                     fp,
                     cls=ComplexEncoder,
                     default=str,
-                    indent=4,
                 )
 
             if arg_id not in checkpoints_set:
