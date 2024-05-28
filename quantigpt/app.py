@@ -88,21 +88,18 @@ def prettify(
 
 @app.command()
 def validate(input_path: Path, output_path_json: Path) -> None:
-
     # init
     count_tableId = 0
     map_argId_premise = {}
 
-
-    checkpoints_file = open(os.path.join('data', 'checkpoints.log'), 'a+')
+    checkpoints_file = open(os.path.join("data", "checkpoints.log"), "a+")
     checkpoints_set = set(checkpoints_file.readlines())
 
     with input_path.open("r") as fp:
         data = json.load(fp)
 
     # iterate each argument
-    for arg_id in tqdm(data["args"], desc='arg_id'):
-
+    for arg_id in tqdm(data["args"], desc="arg_id"):
         # update checkpoints
         if arg_id in checkpoints_set:
             continue
@@ -110,7 +107,6 @@ def validate(input_path: Path, output_path_json: Path) -> None:
         map_argId_premise[arg_id] = []
 
         for premise in data["args"][arg_id]:
-
             # extract data
             premise_id = premise["premise_id"]
             entity_1 = premise["entity_1"]
@@ -122,7 +118,7 @@ def validate(input_path: Path, output_path_json: Path) -> None:
             # init extended premise node
             node_premise_with_source = {}
             node_premise_with_source.update(premise)
-            node_premise_with_source['results'] = []
+            node_premise_with_source["results"] = []
 
             # sleep
             time.sleep(60)
@@ -130,7 +126,14 @@ def validate(input_path: Path, output_path_json: Path) -> None:
 
             # identify Wikipedia pages by Google search
             google_search_string = f"{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}+site%3Aen.wikipedia.org"  # TODO: "site%3Aen.wikipedia.org" does not work, i.e., it finds other languages, e.g., German as well.
-            for result in search(google_search_string, lang='en', sleep_interval=random_sleep_interval, timeout=120, advanced=True, num_results=10):
+            for result in search(
+                google_search_string,
+                lang="en",
+                sleep_interval=random_sleep_interval,
+                timeout=120,
+                advanced=True,
+                num_results=10,
+            ):
                 url = result.url
                 url = cast(str, url)
 
@@ -138,22 +141,23 @@ def validate(input_path: Path, output_path_json: Path) -> None:
                 snippet_description = result.description
 
                 # assign wiki results
-                premise_result = {'url': url,
-                                  'title': snippet_title,
-                                  'google_snippet_description': snippet_description}
+                premise_result = {
+                    "url": url,
+                    "title": snippet_title,
+                    "google_snippet_description": snippet_description,
+                }
 
                 thepage = requests.get(url)
                 soup = BeautifulSoup(thepage.text, "html.parser")
 
-
                 # more context identified by google search snippet in Wikipedia article
-                paragraphs = soup.text.split('\n\n')
+                paragraphs = soup.text.split("\n\n")
                 tokenized_corpus = [doc.split(" ") for doc in paragraphs]
                 bm25 = BM25Okapi(tokenized_corpus)
                 tokenized_query = snippet_description.split(" ")
                 doc_scores = bm25.get_scores(tokenized_query)
                 best_position = -1
-                best_score = -1.
+                best_score = -1.0
                 current_position = 0
                 for score in doc_scores:
                     if best_position == -1 or float(score) > best_score:
@@ -161,52 +165,63 @@ def validate(input_path: Path, output_path_json: Path) -> None:
                         best_score = float(score)
                     current_position += 1
                 context_found_by_snippet = paragraphs[best_position]
-                premise_result['context_found_by_snippet'] = context_found_by_snippet
-
+                premise_result["context_found_by_snippet"] = context_found_by_snippet
 
                 # short summary of Wikipedia article (text before first headline)
-                content_div_abstract = ''
+                content_div_abstract = ""
 
-                for paragraph in soup.select('#mw-content-text > .mw-parser-output > p'):
-                    content_div_abstract += paragraph.get_text() + '\n'
-                    if paragraph.find_next_sibling().name == 'h2':
+                for paragraph in soup.select(
+                    "#mw-content-text > .mw-parser-output > p"
+                ):
+                    content_div_abstract += paragraph.get_text() + "\n"
+                    if paragraph.find_next_sibling().name == "h2":
                         break
 
-                premise_result['summary'] = content_div_abstract
-
+                premise_result["summary"] = content_div_abstract
 
                 # Short description in html
-                html_short_description = soup.find("div", {"class": "shortdescription nomobile noexcerpt noprint searchaux"})
-                premise_result['short_description'] = html_short_description.text if html_short_description else ''
-
+                html_short_description = soup.find(
+                    "div",
+                    {"class": "shortdescription nomobile noexcerpt noprint searchaux"},
+                )
+                premise_result["short_description"] = (
+                    html_short_description.text if html_short_description else ""
+                )
 
                 # extract tables from Wikipedia
                 wiki_tables = soup.find_all("table", {"class": "wikitable"})
-                premise_result['wiki_tables'] = []
+                premise_result["wiki_tables"] = []
                 for wiki_table in wiki_tables:
                     count_tableId += 1
-                    final_table_id = str(arg_id) + "_" + str(premise_id) + "_" + str(count_tableId)
+                    final_table_id = (
+                        str(arg_id) + "_" + str(premise_id) + "_" + str(count_tableId)
+                    )
 
-                    premise_wiki_table = {'final_table_id': final_table_id,
-                                          'wiki_table': str(_remove_all_attrs(wiki_table))}
+                    premise_wiki_table = {
+                        "final_table_id": final_table_id,
+                        "wiki_table": str(_remove_all_attrs(wiki_table)),
+                    }
 
-                    premise_result['wiki_tables'].append(premise_wiki_table)
+                    premise_result["wiki_tables"].append(premise_wiki_table)
 
-                node_premise_with_source['results'].append(premise_result)
+                node_premise_with_source["results"].append(premise_result)
 
-            map_argId_premise[arg_id].append(
-                node_premise_with_source
-            )
+            map_argId_premise[arg_id].append(node_premise_with_source)
 
             # intermediate storage and update checkpoints
             with open(output_path_json, "w+") as outfile:
-                json.dump(map_argId_premise, outfile, cls=ComplexEncoder, default=default_json, indent=4)
+                json.dump(
+                    map_argId_premise,
+                    outfile,
+                    cls=ComplexEncoder,
+                    default=default_json,
+                    indent=4,
+                )
 
             if arg_id not in checkpoints_set:
                 checkpoints_file.write(arg_id)
-                checkpoints_file.write('\n')
+                checkpoints_file.write("\n")
                 checkpoints_file.flush()
-
 
 
 # https://stackoverflow.com/a/57128498
@@ -221,7 +236,7 @@ def _remove_all_attrs(soup):
 
 # https://www.sethserver.com/python/typeerror-object-not-json-serializable.html
 def default_json(t):
-    return f'{t}'
+    return f"{t}"
 
 
 # https://docs.python.org/3/library/json.html#encoders-and-decoders
