@@ -95,6 +95,7 @@ def validate(
     count_tableId = 0
     map_argId_premise = {}
 
+    fp = open(checkpoints_path, 'w+')
     with checkpoints_path.open("r", encoding="utf-8") as fp:
         checkpoints_set = set(fp.readlines())
 
