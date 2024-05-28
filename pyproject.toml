@@ -20,6 +20,7 @@ requests = "^2.31.0"
 beautifulsoup4 = "^4.12.3"
 selenium = "^4.20.0"
 googlesearch-python = "^1.2.4"
+rank-bm25 = "^0.2.2"
 
 [build-system]
 requires = ["poetry-core"]
