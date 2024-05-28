@@ -125,7 +125,7 @@ def validate(input_path: Path, output_path_json: Path) -> None:
             random_sleep_interval = random.randint(50, 60)
 
             # identify Wikipedia pages by Google search
-            google_search_string = f"{entity_1}+{trait}+{quantity}+times+{operator}+than+{entity_2}+site%3Aen.wikipedia.org"  # TODO: "site%3Aen.wikipedia.org" does not work, i.e., it finds other languages, e.g., German as well.
+            google_search_string = f"{entity_1} {trait} {quantity} times {operator} than {entity_2} site:en.wikipedia.org"
             for result in search(
                 google_search_string,
                 lang="en",
