@@ -159,11 +159,14 @@ def validate(input_path: Path, output_path_json: Path) -> None:
                 best_position = -1
                 best_score = -1.0
                 current_position = 0
+
                 for score in doc_scores:
                     if best_position == -1 or float(score) > best_score:
                         best_position = current_position
                         best_score = float(score)
+
                     current_position += 1
+
                 context_found_by_snippet = paragraphs[best_position]
                 premise_result["context_found_by_snippet"] = context_found_by_snippet
 
@@ -174,7 +177,9 @@ def validate(input_path: Path, output_path_json: Path) -> None:
                     "#mw-content-text > .mw-parser-output > p"
                 ):
                     content_div_abstract += paragraph.get_text() + "\n"
-                    if paragraph.find_next_sibling().name == "h2":
+                    next_sibling = paragraph.find_next_sibling()
+
+                    if next_sibling is not None and next_sibling.name == "h2":
                         break
 
                 premise_result["summary"] = content_div_abstract
@@ -214,7 +219,7 @@ def validate(input_path: Path, output_path_json: Path) -> None:
                     map_argId_premise,
                     outfile,
                     cls=ComplexEncoder,
-                    default=default_json,
+                    default=str,
                     indent=4,
                 )
 
@@ -232,11 +237,6 @@ def _remove_all_attrs(soup):
         else:
             tag.attrs = {}
     return soup
-
-
-# https://www.sethserver.com/python/typeerror-object-not-json-serializable.html
-def default_json(t):
-    return f"{t}"
 
 
 # https://docs.python.org/3/library/json.html#encoders-and-decoders
