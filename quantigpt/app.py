@@ -128,6 +128,8 @@ def validate(
 
             # identify Wikipedia pages by Google search
             google_search_string = f"{entity_1} {trait} {quantity} times {operator} than {entity_2} site:en.wikipedia.org"
+            node_premise_with_source["google_search_string"] = google_search_string
+
             for result in search(
                 google_search_string,
                 lang="en",
