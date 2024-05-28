@@ -22,9 +22,6 @@ random.seed(42)
 
 app = typer.Typer()
 
-with Path("./schema.json").open("r", encoding="utf-8") as fp:
-    schema = orjson.loads(fp.read())
-
 Dataset = Mapping[str, Any]
 Datasets = Mapping[str, Dataset]
 Prediction = dict[str, Any]
@@ -95,7 +92,7 @@ def validate(
     count_tableId = 0
     map_argId_premise = {}
 
-    fp = open(checkpoints_path, 'w+')
+    fp = open(checkpoints_path, "w+")
     with checkpoints_path.open("r", encoding="utf-8") as fp:
         checkpoints_set = set(fp.readlines())
 
@@ -252,7 +249,7 @@ class ComplexEncoder(json.JSONEncoder):
 
 
 @app.command()
-def predict(
+def predict_statements(
     input_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
@@ -261,8 +258,6 @@ def predict(
     skip_first: Optional[int] = None,
     model: str = "gpt-4-turbo-preview",
 ):
-    client = openai.AsyncOpenAI()
-
     assert not (ids and sample_size)
     assert not (ids and skip_first)
     assert input_path.suffix == ".json"
@@ -280,27 +275,30 @@ def predict(
     if ids:
         datasets = {k: v for k, v in datasets.items() if k in ids}
 
-    predictions = asyncio.run(run_async(datasets, client, model))
+    predictions = asyncio.run(_predict_statements_wrapper(datasets, model))
 
     with output_path.open("wb", encoding="utf-8") as fp:
         fp.write(orjson.dumps({corpus: predictions}))
 
 
-async def run_async(
-    datasets: Datasets, client: openai.AsyncClient, model: str
-) -> PredictionsMap:
+async def _predict_statements_wrapper(datasets: Datasets, model: str) -> PredictionsMap:
+    client = openai.AsyncOpenAI()
+
+    with Path("./predict_statements.json").open("r", encoding="utf-8") as fp:
+        schema = orjson.loads(fp.read())
+
     return dict(
         await asyncio.gather(
             *(
-                process_dataset(id, dataset, client, model)
+                _predict_statements(id, dataset, client, model, schema)
                 for id, dataset in datasets.items()
             )
         )
     )
 
 
-async def process_dataset(
-    id: str, dataset: Dataset, client: openai.AsyncClient, model: str
+async def _predict_statements(
+    id: str, dataset: Dataset, client: openai.AsyncClient, model: str, schema: Any
 ) -> tuple[str, Predictions]:
     user_prompt = orjson.dumps(
         {
@@ -328,7 +326,7 @@ Your goal is to extract the quantity statements from the premise that are releva
 As a starting point, a pattern-based approach has been used to identify sentences in the premise that contain some free-form operator.
 The operator indicates the relationship between two currently unknown entities in the sentence.
 As additional context, you are provided the entire regex pattern that matched the sentence together with the operator.
-Your goal is to extract all relevant information to call the function `predict_quantity_statements`.
+Your goal is to extract all relevant information to call the function `predict_statements`.
 
 If `quantity == 1.0`, the operator `equal` or `approx` must be used.
 If `quantity` is any other value, the operator must be one of the other four options.
@@ -340,8 +338,8 @@ The `premise_id` will later be used to match the extracted quantity statements w
         model,
         user_prompt,
         system_prompt,
-        [{"name": "predict_quantity_statements", "parameters": schema}],
-        {"name": "predict_quantity_statements"},
+        [{"name": "predict_statements", "parameters": schema}],
+        {"name": "predict_statements"},
     )
 
     assert res.function_call is not None
@@ -353,6 +351,54 @@ The `premise_id` will later be used to match the extracted quantity statements w
     print(f"Processed {id}")
 
     return id, statements
+
+
+@app.command()
+def predict_validations(
+    input_path: Path,
+    output_path: Path,
+    ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
+    model: str = "gpt-4-turbo-preview",
+):
+    assert input_path.suffix == ".json"
+    assert output_path.suffix == ".json"
+
+    datasets = orjson.loads(input_path.read_bytes())
+
+    dataset_ids = list(datasets.keys())
+    random.shuffle(dataset_ids)
+
+    if ids:
+        datasets = {k: v for k, v in datasets.items() if k in ids}
+
+    predictions = asyncio.run(_predict_validations_wrapper(datasets, model))
+
+    with output_path.open("wb", encoding="utf-8") as fp:
+        fp.write(orjson.dumps(predictions))
+
+
+async def _predict_validations_wrapper(
+    datasets: Datasets, model: str
+) -> PredictionsMap:
+    client = openai.AsyncOpenAI()
+
+    with Path("./predict_validations.json").open("r", encoding="utf-8") as fp:
+        schema = orjson.loads(fp.read())
+
+    return dict(
+        await asyncio.gather(
+            *(
+                _predict_validations(id, dataset, client, model, schema)
+                for id, dataset in datasets.items()
+            )
+        )
+    )
+
+
+async def _predict_validations(
+    id: str, dataset: Dataset, client: openai.AsyncClient, model: str, schema: Any
+) -> tuple[str, Predictions]:
+    return id, []
 
 
 async def fetch_openai(
