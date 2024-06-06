@@ -44,11 +44,9 @@ def prettify(
     output_path: Path,
 ) -> None:
     loaded_output = orjson.loads(output_path.read_bytes())
-    assert len(loaded_output) == 1
-    corpus: str = next(iter(loaded_output))
 
-    predictions_map: PredictionsMap = loaded_output[corpus]
-    datasets: Datasets = orjson.loads(input_path.read_bytes())[corpus]
+    predictions_map: PredictionsMap = loaded_output
+    datasets: Datasets = orjson.loads(input_path.read_bytes())
 
     for id, predictions in predictions_map.items():
         dataset = datasets[id]
@@ -101,14 +99,14 @@ def validate(
         data = orjson.loads(fp.read())
 
     # iterate each argument
-    for arg_id in tqdm(data["args"], desc="arg_id"):
+    for arg_id in tqdm(data, desc="arg_id"):
         # update checkpoints
         if arg_id in checkpoints_set:
             continue
 
         map_argId_premise[arg_id] = []
 
-        for premise in data["args"][arg_id]:
+        for premise in data[arg_id]:
             # extract data
             premise_id = premise["premise_id"]
             entity_1 = premise["entity_1"]
@@ -255,7 +253,6 @@ def predict_statements(
     input_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
-    corpus: Annotated[str, typer.Option(...)],
     sample_size: Optional[int] = None,
     skip_first: Optional[int] = None,
     model: str = "gpt-4-turbo-preview",
@@ -265,8 +262,7 @@ def predict_statements(
     assert input_path.suffix == ".json"
     assert output_path.suffix == ".json"
 
-    corpora = orjson.loads(input_path.read_bytes())
-    datasets: Datasets = corpora[corpus]
+    datasets: Datasets = orjson.loads(input_path.read_bytes())
 
     dataset_ids = list(datasets.keys())
     random.shuffle(dataset_ids)
@@ -280,7 +276,7 @@ def predict_statements(
     predictions = asyncio.run(_predict_statements_wrapper(datasets, model))
 
     with output_path.open("wb", encoding="utf-8") as fp:
-        fp.write(orjson.dumps({corpus: predictions}))
+        fp.write(orjson.dumps(predictions))
 
 
 async def _predict_statements_wrapper(datasets: Datasets, model: str) -> PredictionsMap:
