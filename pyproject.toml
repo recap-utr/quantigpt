@@ -21,6 +21,7 @@ beautifulsoup4 = "^4.12.3"
 googlesearch-python = "^1.2.4"
 rank-bm25 = "^0.2.2"
 nltk = "^3.8.1"
+tiktoken = "^0.7.0"
 
 [build-system]
 requires = ["poetry-core"]

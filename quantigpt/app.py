@@ -8,6 +8,7 @@ from typing import Annotated, Any, Mapping, Optional, cast
 import openai
 import orjson
 import requests
+import tiktoken
 import typer
 from bs4 import BeautifulSoup
 from googlesearch import search
@@ -18,15 +19,23 @@ from openai.types.chat.completion_create_params import Function, FunctionCall
 from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
+encoder = tiktoken.get_encoding("cl100k_base")
+
+
+def token_length(text: str) -> int:
+    return len(encoder.encode(text))
+
+
 random.seed(42)
 
 app = typer.Typer()
 
 Dataset = Mapping[str, Any]
 Datasets = Mapping[str, Dataset]
+AugmentedDataset = Mapping[str, Any]
+AugmentedDatasets = Mapping[str, AugmentedDataset]
 Prediction = dict[str, Any]
 Predictions = list[Prediction]
-PredictionsMap = Mapping[str, Predictions]
 
 operator_map: dict[str, str] = {
     "greater": ">",
@@ -45,7 +54,7 @@ def prettify(
 ) -> None:
     loaded_output = orjson.loads(output_path.read_bytes())
 
-    predictions_map: PredictionsMap = loaded_output
+    predictions_map: Mapping[str, Predictions] = loaded_output
     datasets: Datasets = orjson.loads(input_path.read_bytes())
 
     for id, predictions in predictions_map.items():
@@ -255,7 +264,7 @@ def predict_statements(
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
     sample_size: Optional[int] = None,
     skip_first: Optional[int] = None,
-    model: str = "gpt-4-turbo-preview",
+    model: str = "gpt-4o-2024-05-13",
 ):
     assert not (ids and sample_size)
     assert not (ids and skip_first)
@@ -279,7 +288,9 @@ def predict_statements(
         fp.write(orjson.dumps(predictions))
 
 
-async def _predict_statements_wrapper(datasets: Datasets, model: str) -> PredictionsMap:
+async def _predict_statements_wrapper(
+    datasets: Datasets, model: str
+) -> Mapping[str, Predictions]:
     client = openai.AsyncOpenAI()
 
     with Path("./predict_statements.json").open("r", encoding="utf-8") as fp:
@@ -353,50 +364,123 @@ The `premise_id` will later be used to match the extracted quantity statements w
 
 @app.command()
 def predict_validations(
-    input_path: Path,
+    original_datasets_path: Path,
+    augmented_datasets_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
-    model: str = "gpt-4-turbo-preview",
+    model: str = "gpt-4o-2024-05-13",
 ):
-    assert input_path.suffix == ".json"
+    assert augmented_datasets_path.suffix == ".json"
     assert output_path.suffix == ".json"
 
-    datasets = orjson.loads(input_path.read_bytes())
+    augmented_datasets = orjson.loads(augmented_datasets_path.read_bytes())
+    original_datasets = orjson.loads(original_datasets_path.read_bytes())
 
-    dataset_ids = list(datasets.keys())
+    dataset_ids = list(augmented_datasets.keys())
     random.shuffle(dataset_ids)
 
     if ids:
-        datasets = {k: v for k, v in datasets.items() if k in ids}
+        augmented_datasets = {k: v for k, v in augmented_datasets.items() if k in ids}
 
-    predictions = asyncio.run(_predict_validations_wrapper(datasets, model))
+    predictions = asyncio.run(
+        _predict_validations_wrapper(original_datasets, augmented_datasets, model)
+    )
 
     with output_path.open("wb", encoding="utf-8") as fp:
         fp.write(orjson.dumps(predictions))
 
 
 async def _predict_validations_wrapper(
-    datasets: Datasets, model: str
-) -> PredictionsMap:
+    original_datasets: Datasets, augmented_datasets: AugmentedDatasets, model: str
+) -> Mapping[str, Prediction]:
     client = openai.AsyncOpenAI()
 
-    with Path("./predict_validations.json").open("r", encoding="utf-8") as fp:
+    with Path("./predict_validation.json").open("r", encoding="utf-8") as fp:
         schema = orjson.loads(fp.read())
 
     return dict(
         await asyncio.gather(
             *(
-                _predict_validations(id, dataset, client, model, schema)
-                for id, dataset in datasets.items()
+                _predict_validation(
+                    id,
+                    original_datasets["id"],
+                    augmented_dataset,
+                    client,
+                    model,
+                    schema,
+                )
+                for id, augmented_dataset in augmented_datasets.items()
             )
         )
     )
 
 
-async def _predict_validations(
-    id: str, dataset: Dataset, client: openai.AsyncClient, model: str, schema: Any
-) -> tuple[str, Predictions]:
-    return id, []
+async def _predict_validation(
+    id: str,
+    original_dataset: Dataset,
+    augmented_dataset: AugmentedDataset,
+    client: openai.AsyncClient,
+    model: str,
+    schema: Any,
+) -> tuple[str, Prediction]:
+    wiki_results = []
+
+    for result in augmented_dataset["results"]:
+        if "en.wikipedia.org" in result["url"]:
+            new_wiki_results = [
+                *wiki_results,
+                {
+                    "url": result["url"],
+                    "title": result["title"],
+                    "google_snippet_description": result["google_snippet_description"],
+                    "summary": result["summary"],
+                    "short_description": result["short_description"],
+                    "context_found_by_snippet": result["context_found_by_snippet"],
+                    "tables": [table["wiki_table"] for table in result["wiki_tables"]],
+                },
+            ]
+
+            # TODO: Document the limitation of wiki tables to 50000 tokens
+            if token_length(orjson.dumps(new_wiki_results).decode()) < 50000:
+                wiki_results = new_wiki_results
+
+    user_prompt = orjson.dumps(
+        {
+            "claim_text": original_dataset["claim"],
+            "premise_text": original_dataset["premise_sentences"][
+                augmented_dataset["premise_id"]
+            ],
+            "stance": original_dataset["stance"].lower(),
+            "entity_1": augmented_dataset["entity_1"],
+            "entity_2": augmented_dataset["entity_2"],
+            "trait": augmented_dataset["trait"],
+            "operator": augmented_dataset["operator"],
+            "quantity": augmented_dataset["quantity"],
+            "google_search_string": augmented_dataset["google_search_string"],
+            "wikipedia_search_results": wiki_results,
+        }
+    ).decode()
+    system_prompt = """
+You are an assistant that verifies quantitative statements extracted from the claim and a premise of an argument.
+TODO: System prompt
+"""
+
+    res = await fetch_openai(
+        client,
+        model,
+        user_prompt,
+        system_prompt,
+        [{"name": "predict_validation", "parameters": schema}],
+        {"name": "predict_validation"},
+    )
+
+    assert res.function_call is not None
+
+    prediction: dict[str, Any] = orjson.loads(res.function_call.arguments)
+
+    print(f"Processed {id}")
+
+    return id, prediction
 
 
 async def fetch_openai(

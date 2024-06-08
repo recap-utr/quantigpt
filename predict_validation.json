@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Quantitative statements",
+  "description": "Validate quantitative statements extracted from a text",
+  "type": "object",
+  "required": ["explanation", "validation"],
+  "properties": {
+    "explanation": {
+      "description": "Explanation for the chosen `validation` value.",
+      "type": "string"
+    },
+    "validation": {
+      "description": "`valid` if the statement is valid given the provided context, `invalid` if the statement is not valid, `unknown` if it is unclear",
+      "type": "string",
+      "enum": ["valid", "invalid", "unknown"]
+    }
+  }
+}
