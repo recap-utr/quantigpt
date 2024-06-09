@@ -49,13 +49,13 @@ operator_map: dict[str, str] = {
 
 @app.command()
 def prettify(
-    input_path: Path,
-    output_path: Path,
+    pattern_matches_path: Path,
+    predicted_statements_path: Path,
 ) -> None:
-    loaded_output = orjson.loads(output_path.read_bytes())
+    predicted_statements = orjson.loads(predicted_statements_path.read_bytes())
 
-    predictions_map: Mapping[str, Predictions] = loaded_output
-    datasets: Datasets = orjson.loads(input_path.read_bytes())
+    predictions_map: Mapping[str, Predictions] = predicted_statements
+    datasets: Datasets = orjson.loads(pattern_matches_path.read_bytes())
 
     for id, predictions in predictions_map.items():
         dataset = datasets[id]
@@ -91,7 +91,7 @@ def prettify(
 
 @app.command()
 def validate(
-    input_path: Path,
+    predicted_statements_path: Path,
     output_path: Path,
     checkpoints_path: Path = Path("data/validate-checkpoints.log"),
 ) -> None:
@@ -104,7 +104,7 @@ def validate(
         with checkpoints_path.open("r", encoding="utf-8") as fp:
             checkpoints_set = set(fp.readlines())
 
-    with input_path.open("r", encoding="utf-8") as fp:
+    with predicted_statements_path.open("r", encoding="utf-8") as fp:
         data = orjson.loads(fp.read())
 
     # iterate each argument
@@ -259,7 +259,7 @@ class ComplexEncoder(json.JSONEncoder):
 
 @app.command()
 def predict_statements(
-    input_path: Path,
+    pattern_matches_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
     sample_size: Optional[int] = None,
@@ -268,10 +268,10 @@ def predict_statements(
 ):
     assert not (ids and sample_size)
     assert not (ids and skip_first)
-    assert input_path.suffix == ".json"
+    assert pattern_matches_path.suffix == ".json"
     assert output_path.suffix == ".json"
 
-    datasets: Datasets = orjson.loads(input_path.read_bytes())
+    datasets: Datasets = orjson.loads(pattern_matches_path.read_bytes())
 
     dataset_ids = list(datasets.keys())
     random.shuffle(dataset_ids)
