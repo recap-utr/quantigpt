@@ -510,5 +510,63 @@ async def fetch_openai(
     return response.choices[0].message
 
 
+def export_labelstudio(
+    pattern_matches_path: Path,
+    augmented_statements_path: Path,
+    validated_statements_path: Path,
+    output_path: Path,
+):
+    assert pattern_matches_path.suffix == ".json"
+    assert output_path.suffix == ".json"
+
+    pattern_matches: Datasets = orjson.loads(pattern_matches_path.read_bytes())
+    augmented_statements = orjson.loads(augmented_statements_path.read_bytes())
+    validated_statements = orjson.loads(validated_statements_path.read_bytes())
+    export_data: list[dict[str, Any]] = []
+
+    for id, validated_statement in validated_statements.items():
+        pattern_match = pattern_matches[id]
+        augmented_statement = augmented_statements[id]
+
+        export_data.append(
+            {
+                # "id": id,
+                "data": {
+                    "formatted_data": f"""
+<p><strong>Claim:</strong> {pattern_match['claim']}</p>
+<p><strong>Premise:</strong> {pattern_match['premise_sentences'][augmented_statement['premise_id']]}</p>
+<p><strong>Stance:</strong> {pattern_match['stance']}</p>
+""",
+                    "formatted_statement": f"""
+<p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
+<p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
+<p><strong>Trait:</strong> {augmented_statement['trait']}</p>
+<p><strong>Operator:</strong> {augmented_statement['operator']}</p>
+<p><strong>Quantity:</strong> {augmented_statement['quantity']}</p>
+""",
+                    "formatted_validation": f"""
+<p><strong>Validation:</strong> {validated_statement['validation']}</p>
+<p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
+""",
+                    "entity_1": augmented_statement["entity_1"],
+                    "entity_2": augmented_statement["entity_2"],
+                    "trait": augmented_statement["trait"],
+                    "operator": augmented_statement["operator"],
+                    "quantity": augmented_statement["quantity"],
+                    "claim": pattern_match["claim"],
+                    "premise": pattern_match["premise_sentences"][
+                        augmented_statement["premise_id"]
+                    ],
+                    "stance": pattern_match["stance"],
+                    "validation": validated_statement["validation"],
+                    "reasoning": validated_statement["reasoning"],
+                },
+            }
+        )
+
+    with output_path.open("wb", encoding="utf-8") as fp:
+        fp.write(orjson.dumps(export_data))
+
+
 if __name__ == "__main__":
     app()

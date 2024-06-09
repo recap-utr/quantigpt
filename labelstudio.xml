@@ -1,22 +1,22 @@
 <View>
     <View>
         <Header value="Original data" />
-        <HyperText name="original-data" value="$original_data" />
+        <HyperText name="formatted-data" value="$formatted_data" />
         <Header value="Predicted quantitative statement" />
-        <HyperText name="predicted-statement" value="$predicted_statement" />
+        <HyperText name="formatted-statement" value="$formatted_statement" />
         <Header value="Predicted validation" />
-        <HyperText name="predicted-validation" value="$predicted_validation" />
+        <HyperText name="formatted-validation" value="$formatted_validation" />
     </View>
     <View style="border-top: 1px solid black; margin-top: 10px;">
         <Header value="Please rate the predicted statement" />
-        <Choices name="statement-rating" toName="predicted-statement" showInline="true"
+        <Choices name="statement-rating" toName="formatted-statement" showInline="true"
             choice="single-radio">
             <Choice value="Correct" />
             <Choice value="Partly correct" />
             <Choice value="Incorrect" />
         </Choices>
         <Header value="Please rate the predicted validation" />
-        <Choices name="validation-rating" toName="predicted-validation" showInline="true"
+        <Choices name="validation-rating" toName="formatted-validation" showInline="true"
             choice="single-radio">
             <Choice value="Correct" />
             <Choice value="Partly correct" />
@@ -26,26 +26,26 @@
     <View style="border-top: 1px solid black; margin-top: 10px;">
         <Header value="Please fix the predicted statement (if necessary)" />
         <Header value="Entity 1" size="5" />
-        <TextArea name="corrected-entity-1" toName="predicted-statement" value="$entity_1" />
+        <TextArea name="corrected-entity-1" toName="formatted-statement" value="$entity_1" />
         <Header value="Entity 2" size="5" />
-        <TextArea name="corrected-entity-2" toName="predicted-statement" value="$entity_2" />
+        <TextArea name="corrected-entity-2" toName="formatted-statement" value="$entity_2" />
         <Header value="Trait" size="5" />
-        <TextArea name="corrected-trait" toName="predicted-statement" value="$trait" />
+        <TextArea name="corrected-trait" toName="formatted-statement" value="$trait" />
         <Header value="Operator" size="5" />
-        <TextArea name="corrected-operator" toName="predicted-statement" value="$operator" />
+        <TextArea name="corrected-operator" toName="formatted-statement" value="$operator" />
         <Header value="Quantity" size="5" />
-        <TextArea name="corrected-quantity" toName="predicted-statement" value="$quantity" />
+        <TextArea name="corrected-quantity" toName="formatted-statement" value="$quantity" />
     </View>
     <View style="border-top: 1px solid black; margin-top: 10px;">
         <Header value="Please validate the corrected predictions manually" />
         <Header value="Decision" size="5" />
-        <Choices name="corrected-validation" toName="predicted-validation" showInline="true"
+        <Choices name="corrected-validation" toName="formatted-validation" showInline="true"
             choice="single-radio">
             <Choice value="Valid" />
             <Choice value="Invalid" />
             <Choice value="Unknown" />
         </Choices>
         <Header value="Source/Reason" size="5" />
-        <TextArea name="corrected-validation-explanation" toName="predicted-validation" />
+        <TextArea name="corrected-validation-explanation" toName="formatted-validation" />
     </View>
 </View>
