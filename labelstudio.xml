@@ -1,0 +1,51 @@
+<View>
+    <View>
+        <Header value="Original data" />
+        <HyperText name="original-data" value="$original_data" />
+        <Header value="Predicted quantitative statement" />
+        <HyperText name="predicted-statement" value="$predicted_statement" />
+        <Header value="Predicted validation" />
+        <HyperText name="predicted-validation" value="$predicted_validation" />
+    </View>
+    <View style="border-top: 1px solid black; margin-top: 10px;">
+        <Header value="Please rate the predicted statement" />
+        <Choices name="statement-rating" toName="predicted-statement" showInline="true"
+            choice="single-radio">
+            <Choice value="Correct" />
+            <Choice value="Partly correct" />
+            <Choice value="Incorrect" />
+        </Choices>
+        <Header value="Please rate the predicted validation" />
+        <Choices name="validation-rating" toName="predicted-validation" showInline="true"
+            choice="single-radio">
+            <Choice value="Correct" />
+            <Choice value="Partly correct" />
+            <Choice value="Incorrect" />
+        </Choices>
+    </View>
+    <View style="border-top: 1px solid black; margin-top: 10px;">
+        <Header value="Please fix the predicted statement (if necessary)" />
+        <Header value="Entity 1" size="5" />
+        <TextArea name="corrected-entity-1" toName="predicted-statement" value="$entity_1" />
+        <Header value="Entity 2" size="5" />
+        <TextArea name="corrected-entity-2" toName="predicted-statement" value="$entity_2" />
+        <Header value="Trait" size="5" />
+        <TextArea name="corrected-trait" toName="predicted-statement" value="$trait" />
+        <Header value="Operator" size="5" />
+        <TextArea name="corrected-operator" toName="predicted-statement" value="$operator" />
+        <Header value="Quantity" size="5" />
+        <TextArea name="corrected-quantity" toName="predicted-statement" value="$quantity" />
+    </View>
+    <View style="border-top: 1px solid black; margin-top: 10px;">
+        <Header value="Please validate the corrected predictions manually" />
+        <Header value="Decision" size="5" />
+        <Choices name="corrected-validation" toName="predicted-validation" showInline="true"
+            choice="single-radio">
+            <Choice value="Valid" />
+            <Choice value="Invalid" />
+            <Choice value="Unknown" />
+        </Choices>
+        <Header value="Source/Reason" size="5" />
+        <TextArea name="corrected-validation-explanation" toName="predicted-validation" />
+    </View>
+</View>
