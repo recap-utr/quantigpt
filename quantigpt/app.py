@@ -28,7 +28,7 @@ def token_length(text: str) -> int:
 
 random.seed(42)
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_enable=False)
 
 Dataset = Mapping[str, Any]
 Datasets = Mapping[str, Dataset]
@@ -389,9 +389,6 @@ def predict_validations(
     augmented_statements = orjson.loads(augmented_statements_path.read_bytes())
     pattern_matches = orjson.loads(pattern_matches_path.read_bytes())
 
-    dataset_ids = list(augmented_statements.keys())
-    random.shuffle(dataset_ids)
-
     if ids:
         augmented_statements = {
             k: v for k, v in augmented_statements.items() if k in ids
@@ -418,7 +415,7 @@ async def _predict_validations_wrapper(
             *(
                 _predict_validation(
                     id,
-                    pattern_matches["id"],
+                    pattern_matches[id],
                     augmented_dataset,
                     client,
                     model,
