@@ -377,26 +377,28 @@ The `premise_id` will later be used to match the extracted quantity statements w
 
 @app.command()
 def predict_validations(
-    original_datasets_path: Path,
-    augmented_datasets_path: Path,
+    pattern_matches_path: Path,
+    augmented_statements_path: Path,
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
     model: str = "gpt-4o-2024-05-13",
 ):
-    assert augmented_datasets_path.suffix == ".json"
+    assert augmented_statements_path.suffix == ".json"
     assert output_path.suffix == ".json"
 
-    augmented_datasets = orjson.loads(augmented_datasets_path.read_bytes())
-    original_datasets = orjson.loads(original_datasets_path.read_bytes())
+    augmented_statements = orjson.loads(augmented_statements_path.read_bytes())
+    pattern_matches = orjson.loads(pattern_matches_path.read_bytes())
 
-    dataset_ids = list(augmented_datasets.keys())
+    dataset_ids = list(augmented_statements.keys())
     random.shuffle(dataset_ids)
 
     if ids:
-        augmented_datasets = {k: v for k, v in augmented_datasets.items() if k in ids}
+        augmented_statements = {
+            k: v for k, v in augmented_statements.items() if k in ids
+        }
 
     predictions = asyncio.run(
-        _predict_validations_wrapper(original_datasets, augmented_datasets, model)
+        _predict_validations_wrapper(pattern_matches, augmented_statements, model)
     )
 
     with output_path.open("wb", encoding="utf-8") as fp:
@@ -404,7 +406,7 @@ def predict_validations(
 
 
 async def _predict_validations_wrapper(
-    original_datasets: Datasets, augmented_datasets: AugmentedDatasets, model: str
+    pattern_matches: Datasets, augmented_statements: AugmentedDatasets, model: str
 ) -> Mapping[str, Prediction]:
     client = openai.AsyncOpenAI()
 
@@ -416,13 +418,13 @@ async def _predict_validations_wrapper(
             *(
                 _predict_validation(
                     id,
-                    original_datasets["id"],
+                    pattern_matches["id"],
                     augmented_dataset,
                     client,
                     model,
                     schema,
                 )
-                for id, augmented_dataset in augmented_datasets.items()
+                for id, augmented_dataset in augmented_statements.items()
             )
         )
     )
