@@ -3,10 +3,10 @@
   "title": "Quantitative statements",
   "description": "Validate quantitative statements extracted from a text",
   "type": "object",
-  "required": ["explanation", "validation"],
+  "required": ["reasoning", "validation"],
   "properties": {
-    "explanation": {
-      "description": "Explanation for the chosen `validation` value.",
+    "reasoning": {
+      "description": "Explanation of the reasoning for choosing the `validation` value.",
       "type": "string"
     },
     "validation": {

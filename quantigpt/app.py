@@ -328,14 +328,27 @@ async def _predict_statements(
     ).decode()
     system_prompt = """
 You are an assistant that extracts quantitative statements from arguments.
-Each argument consists of a claim (a statement that is being argued) and a premise (a statement that supports or attacks the claim).
+
+## Task Description
+
+An argument consists of a claim (a statement that is being argued) and a premise (a statement that supports or attacks the claim).
 The stance indicates whether the premise supports or attacks the claim.
+The goal is to extract quantity statements from the premise that are relevant to the claim.
+A quantity statement consists of two entities (e.g., "computers" and "consoles"), a trait between them (e.g., "cost"), an operator (e.g., "greater"), and a quantity (e.g., "2").
+The operator indicates the relationship between the two entities, and the quantity specifies the amount of the trait that one entity has compared to the other.
+
+## Input
+
 You will be provided with a claim, its premise, and the stance between them.
-Your goal is to extract the quantity statements from the premise that are relevant to the claim.
 As a starting point, a pattern-based approach has been used to identify sentences in the premise that contain some free-form operator.
 The operator indicates the relationship between two currently unknown entities in the sentence.
 As additional context, you are provided the entire regex pattern that matched the sentence together with the operator.
-Your goal is to extract all relevant information to call the function `predict_statements`.
+
+## Output
+
+You shall extract all relevant information to call the function `predict_statements`.
+
+## Constraints
 
 If `quantity == 1.0`, the operator `equal` or `approx` must be used.
 If `quantity` is any other value, the operator must be one of the other four options.
@@ -461,8 +474,29 @@ async def _predict_validation(
         }
     ).decode()
     system_prompt = """
-You are an assistant that verifies quantitative statements extracted from the claim and a premise of an argument.
-TODO: System prompt
+You are an assistant that verifies quantitative statements via provided retrieval results.
+
+## Task Description
+
+In the previous step, you extracted a quantitative statement from an argument.
+A quantity statement consists of two entities (e.g., "computers" and "consoles"), a trait between them (e.g., "cost"), an operator (e.g., "greater"), and a quantity (e.g., "2").
+Via a web search, we identified relevant Wikipedia pages that contain additional context such as tables and summaries.
+The goal is to validate the extracted quantity statement based on the provided context.
+
+## Input
+
+You will be provided with the extracted quantity statement, the claim, the premise, their stance, the web search string, and the Wikipedia search results.
+The tables have been extracted in their HTML representation.
+Only the given information shall be used to validate the quantity statement.
+
+## Output
+
+You shall extract all relevant information to call the function `predict_validation`.
+
+## Constraints
+
+Do not use any external information beyond the provided context.
+If no data is available for the queried validation, respond with `unknown`.
 """
 
     res = await fetch_openai(
@@ -536,18 +570,18 @@ def export_labelstudio(
 <p><strong>Claim:</strong> {pattern_match['claim']}</p>
 <p><strong>Premise:</strong> {pattern_match['premise_sentences'][augmented_statement['premise_id']]}</p>
 <p><strong>Stance:</strong> {pattern_match['stance']}</p>
-""",
+""".strip(),
                     "formatted_statement": f"""
 <p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
 <p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
 <p><strong>Trait:</strong> {augmented_statement['trait']}</p>
 <p><strong>Operator:</strong> {augmented_statement['operator']}</p>
 <p><strong>Quantity:</strong> {augmented_statement['quantity']}</p>
-""",
+""".strip(),
                     "formatted_validation": f"""
 <p><strong>Validation:</strong> {validated_statement['validation']}</p>
 <p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
-""",
+""".strip(),
                     "entity_1": augmented_statement["entity_1"],
                     "entity_2": augmented_statement["entity_2"],
                     "trait": augmented_statement["trait"],
