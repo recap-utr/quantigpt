@@ -282,7 +282,7 @@ def predict_statements(
 
     predictions = asyncio.run(_predict_statements_wrapper(datasets, model))
 
-    with output_path.open("wb", encoding="utf-8") as fp:
+    with output_path.open("wb") as fp:
         fp.write(orjson.dumps(predictions))
 
 
@@ -396,7 +396,7 @@ def predict_validations(
         _predict_validations_wrapper(pattern_matches, augmented_statements, model)
     )
 
-    with output_path.open("wb", encoding="utf-8") as fp:
+    with output_path.open("wb") as fp:
         fp.write(orjson.dumps(predictions))
 
 
@@ -614,7 +614,7 @@ def export_labelstudio(
                 }
             )
 
-    with output_path.open("wb", encoding="utf-8") as fp:
+    with output_path.open("wb") as fp:
         fp.write(orjson.dumps(export_data))
 
 
