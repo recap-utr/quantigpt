@@ -551,6 +551,7 @@ async def fetch_openai(
     return response.choices[0].message
 
 
+@app.command()
 def export_labelstudio(
     pattern_matches_path: Path,
     augmented_statements_path: Path,

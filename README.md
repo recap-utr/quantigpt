@@ -1,7 +1,7 @@
 # QuantiGPT
 
 ```shell
-CORPUS=args
+CORPUS=args # or CORPUS=kialo
 ```
 
 ## Predicting
@@ -31,5 +31,5 @@ poetry run python -m quantigpt predict-validations data/pattern-matches-$CORPUS.
 ## Label Studio Export
 
 ```shell
-poetry run python -m quantigpt export-labelstudio data/pattern-matches-$CORPUS.json data/augmented-statements-$CORPUS.json data/predicted-validations-$CORPUS.json
+poetry run python -m quantigpt export-labelstudio data/pattern-matches-$CORPUS.json data/augmented-statements-$CORPUS.json data/predicted-validations-$CORPUS.json data/labelstudio-$CORPUS.json
 ```
