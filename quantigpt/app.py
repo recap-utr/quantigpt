@@ -88,7 +88,7 @@ def prettify(
 
 
 @app.command()
-def validate(
+def augment_statements(
     predicted_statements_path: Path,
     output_path: Path,
     checkpoints_path: Path = Path("data/validate-checkpoints.log"),
@@ -554,7 +554,7 @@ async def fetch_openai(
 def export_labelstudio(
     pattern_matches_path: Path,
     augmented_statements_path: Path,
-    validated_statements_path: Path,
+    predicted_validations_path: Path,
     output_path: Path,
 ):
     assert pattern_matches_path.suffix == ".json"
@@ -565,7 +565,7 @@ def export_labelstudio(
         augmented_statements_path.read_bytes()
     )
     validated_datasets: dict[str, Predictions] = orjson.loads(
-        validated_statements_path.read_bytes()
+        predicted_validations_path.read_bytes()
     )
     export_data: list[dict[str, Any]] = []
 
