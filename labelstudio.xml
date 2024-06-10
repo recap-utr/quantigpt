@@ -48,4 +48,8 @@
         <Header value="Source/Reason" size="5" />
         <TextArea name="corrected-validation-explanation" toName="formatted-validation" />
     </View>
+    <View style="border-top: 1px solid black; margin-top: 10px;">
+        <Header value="Additinal remarks" />
+        <TextArea name="notes" toName="formatted-data" />
+    </View>
 </View>
