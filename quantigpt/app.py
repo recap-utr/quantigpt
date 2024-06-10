@@ -591,6 +591,7 @@ def export_labelstudio(
     <p><strong>Stance:</strong> {pattern_match['stance']}</p>
     """.strip(),
                         "formatted_statement": f"""
+    <p><strong>{prettify_prediction(augmented_statement)}</strong></p>
     <p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
     <p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
     <p><strong>Trait:</strong> {augmented_statement['trait']}</p>
