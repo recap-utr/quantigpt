@@ -606,7 +606,7 @@ def export_labelstudio(
                         "entity_2": augmented_statement["entity_2"],
                         "trait": augmented_statement["trait"],
                         "operator": augmented_statement["operator"],
-                        "quantity": augmented_statement["quantity"],
+                        "quantity": str(augmented_statement["quantity"]),
                         "claim": pattern_match["claim"],
                         "premise": pattern_match["premise_sentences"][
                             augmented_statement["premise_id"]
