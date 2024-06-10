@@ -46,7 +46,7 @@ operator_map: dict[str, str] = {
 
 
 @app.command()
-def prettify(
+def prettify_statements(
     pattern_matches_path: Path,
     predicted_statements_path: Path,
 ) -> None:
@@ -69,22 +69,24 @@ def prettify(
                 ),
                 None,
             )
-            formatted_prediction = "n/a"
-
-            if prediction is not None:
-                operator = operator_map.get(prediction.get("operator", ""), "n/a")
-                quantity = prediction.get("quantity", "n/a")
-                entity1 = prediction.get("entity_1", "n/a")
-                entity2 = prediction.get("entity_2", "n/a")
-                trait = prediction.get("trait", "n/a")
-                formatted_prediction = (
-                    f"'{entity1}' {operator} '{entity2}': {quantity}x {trait}".lower()
-                )
 
             print(f"- Premise: {input_match['sentence_text']}")
-            print(f"  Prediction: {formatted_prediction}")
+            print(f"  Prediction: {prettify_prediction(prediction)}")
 
         print()
+
+
+def prettify_prediction(prediction: Prediction | None) -> str:
+    if prediction is None:
+        return "n/a"
+
+    operator = operator_map.get(prediction.get("operator", ""), "n/a")
+    quantity = prediction.get("quantity", "n/a")
+    entity1 = prediction.get("entity_1", "n/a")
+    entity2 = prediction.get("entity_2", "n/a")
+    trait = prediction.get("trait", "n/a")
+
+    return f"'{entity1}' {operator} '{entity2}': {quantity}x {trait}".lower()
 
 
 @app.command()
