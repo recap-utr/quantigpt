@@ -32,8 +32,6 @@ app = typer.Typer(pretty_exceptions_enable=False)
 
 Dataset = Mapping[str, Any]
 Datasets = Mapping[str, Dataset]
-AugmentedDataset = Mapping[str, Any]
-AugmentedDatasets = Mapping[str, AugmentedDataset]
 Prediction = dict[str, Any]
 Predictions = list[Prediction]
 
@@ -403,8 +401,10 @@ def predict_validations(
 
 
 async def _predict_validations_wrapper(
-    pattern_matches: Datasets, augmented_statements: AugmentedDatasets, model: str
-) -> Mapping[str, Prediction]:
+    pattern_matches: Datasets,
+    augmented_statements: Mapping[str, Predictions],
+    model: str,
+) -> Mapping[str, Predictions]:
     client = openai.AsyncOpenAI()
 
     with Path("./predict_validation.json").open("r", encoding="utf-8") as fp:
@@ -430,48 +430,14 @@ async def _predict_validations_wrapper(
 async def _predict_validation(
     id: str,
     original_dataset: Dataset,
-    augmented_dataset: AugmentedDataset,
+    augmented_dataset: Predictions,
     client: openai.AsyncClient,
     model: str,
     schema: Any,
-) -> tuple[str, Prediction]:
+) -> tuple[str, Predictions]:
+    predictions = []
     wiki_results = []
 
-    for result in augmented_dataset["results"]:
-        if "en.wikipedia.org" in result["url"]:
-            new_wiki_results = [
-                *wiki_results,
-                {
-                    "url": result["url"],
-                    "title": result["title"],
-                    "google_snippet_description": result["google_snippet_description"],
-                    "summary": result["summary"],
-                    "short_description": result["short_description"],
-                    "context_found_by_snippet": result["context_found_by_snippet"],
-                    "tables": [table["wiki_table"] for table in result["wiki_tables"]],
-                },
-            ]
-
-            # TODO: Document the limitation of wiki tables to 50000 tokens
-            if token_length(orjson.dumps(new_wiki_results).decode()) < 50000:
-                wiki_results = new_wiki_results
-
-    user_prompt = orjson.dumps(
-        {
-            "claim_text": original_dataset["claim"],
-            "premise_text": original_dataset["premise_sentences"][
-                augmented_dataset["premise_id"]
-            ],
-            "stance": original_dataset["stance"].lower(),
-            "entity_1": augmented_dataset["entity_1"],
-            "entity_2": augmented_dataset["entity_2"],
-            "trait": augmented_dataset["trait"],
-            "operator": augmented_dataset["operator"],
-            "quantity": augmented_dataset["quantity"],
-            "google_search_string": augmented_dataset["google_search_string"],
-            "wikipedia_search_results": wiki_results,
-        }
-    ).decode()
     system_prompt = """
 You are an assistant that verifies quantitative statements via provided retrieval results.
 
@@ -498,22 +464,64 @@ Do not use any external information beyond the provided context.
 If no data is available for the queried validation, respond with `unknown`.
 """
 
-    res = await fetch_openai(
-        client,
-        model,
-        user_prompt,
-        system_prompt,
-        [{"name": "predict_validation", "parameters": schema}],
-        {"name": "predict_validation"},
-    )
+    for statement in augmented_dataset:
+        for result in statement["results"]:
+            if "en.wikipedia.org" in result["url"]:
+                new_wiki_results = [
+                    *wiki_results,
+                    {
+                        "url": result["url"],
+                        "title": result["title"],
+                        "google_snippet_description": result[
+                            "google_snippet_description"
+                        ],
+                        "summary": result["summary"],
+                        "short_description": result["short_description"],
+                        "context_found_by_snippet": result["context_found_by_snippet"],
+                        "tables": [
+                            table["wiki_table"] for table in result["wiki_tables"]
+                        ],
+                    },
+                ]
 
-    assert res.function_call is not None
+                # TODO: Document the limitation of wiki tables to 50000 tokens
+                if token_length(orjson.dumps(new_wiki_results).decode()) < 50000:
+                    wiki_results = new_wiki_results
 
-    prediction: dict[str, Any] = orjson.loads(res.function_call.arguments)
+        user_prompt = orjson.dumps(
+            {
+                "claim_text": original_dataset["claim"],
+                "premise_text": original_dataset["premise_sentences"][
+                    statement["premise_id"]
+                ],
+                "stance": original_dataset["stance"].lower(),
+                "entity_1": statement["entity_1"],
+                "entity_2": statement["entity_2"],
+                "trait": statement["trait"],
+                "operator": statement["operator"],
+                "quantity": statement["quantity"],
+                "google_search_string": statement["google_search_string"],
+                "wikipedia_search_results": wiki_results,
+            }
+        ).decode()
 
-    print(f"Processed {id}")
+        res = await fetch_openai(
+            client,
+            model,
+            user_prompt,
+            system_prompt,
+            [{"name": "predict_validation", "parameters": schema}],
+            {"name": "predict_validation"},
+        )
 
-    return id, prediction
+        assert res.function_call is not None
+
+        prediction: dict[str, Any] = orjson.loads(res.function_call.arguments)
+        predictions.append(prediction)
+
+        print(f"Processed {id}")
+
+    return id, predictions
 
 
 async def fetch_openai(
@@ -553,49 +561,58 @@ def export_labelstudio(
     assert output_path.suffix == ".json"
 
     pattern_matches: Datasets = orjson.loads(pattern_matches_path.read_bytes())
-    augmented_statements = orjson.loads(augmented_statements_path.read_bytes())
-    validated_statements = orjson.loads(validated_statements_path.read_bytes())
+    augmented_datasets: dict[str, Predictions] = orjson.loads(
+        augmented_statements_path.read_bytes()
+    )
+    validated_datasets: dict[str, Predictions] = orjson.loads(
+        validated_statements_path.read_bytes()
+    )
     export_data: list[dict[str, Any]] = []
 
-    for id, validated_statement in validated_statements.items():
+    for id, validated_statements in validated_datasets.items():
         pattern_match = pattern_matches[id]
-        augmented_statement = augmented_statements[id]
+        augmented_statements = augmented_datasets[id]
 
-        export_data.append(
-            {
-                # "id": id,
-                "data": {
-                    "formatted_data": f"""
-<p><strong>Claim:</strong> {pattern_match['claim']}</p>
-<p><strong>Premise:</strong> {pattern_match['premise_sentences'][augmented_statement['premise_id']]}</p>
-<p><strong>Stance:</strong> {pattern_match['stance']}</p>
-""".strip(),
-                    "formatted_statement": f"""
-<p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
-<p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
-<p><strong>Trait:</strong> {augmented_statement['trait']}</p>
-<p><strong>Operator:</strong> {augmented_statement['operator']}</p>
-<p><strong>Quantity:</strong> {augmented_statement['quantity']}</p>
-""".strip(),
-                    "formatted_validation": f"""
-<p><strong>Validation:</strong> {validated_statement['validation']}</p>
-<p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
-""".strip(),
-                    "entity_1": augmented_statement["entity_1"],
-                    "entity_2": augmented_statement["entity_2"],
-                    "trait": augmented_statement["trait"],
-                    "operator": augmented_statement["operator"],
-                    "quantity": augmented_statement["quantity"],
-                    "claim": pattern_match["claim"],
-                    "premise": pattern_match["premise_sentences"][
-                        augmented_statement["premise_id"]
-                    ],
-                    "stance": pattern_match["stance"],
-                    "validation": validated_statement["validation"],
-                    "reasoning": validated_statement["reasoning"],
-                },
-            }
-        )
+        assert len(augmented_statements) == len(validated_statements)
+
+        for augmented_statement, validated_statement in zip(
+            augmented_statements, validated_statements
+        ):
+            export_data.append(
+                {
+                    # "id": id,
+                    "data": {
+                        "formatted_data": f"""
+    <p><strong>Claim:</strong> {pattern_match['claim']}</p>
+    <p><strong>Premise:</strong> {pattern_match['premise_sentences'][augmented_statement['premise_id']]}</p>
+    <p><strong>Stance:</strong> {pattern_match['stance']}</p>
+    """.strip(),
+                        "formatted_statement": f"""
+    <p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
+    <p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
+    <p><strong>Trait:</strong> {augmented_statement['trait']}</p>
+    <p><strong>Operator:</strong> {augmented_statement['operator']}</p>
+    <p><strong>Quantity:</strong> {augmented_statement['quantity']}</p>
+    """.strip(),
+                        "formatted_validation": f"""
+    <p><strong>Validation:</strong> {validated_statement['validation']}</p>
+    <p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
+    """.strip(),
+                        "entity_1": augmented_statement["entity_1"],
+                        "entity_2": augmented_statement["entity_2"],
+                        "trait": augmented_statement["trait"],
+                        "operator": augmented_statement["operator"],
+                        "quantity": augmented_statement["quantity"],
+                        "claim": pattern_match["claim"],
+                        "premise": pattern_match["premise_sentences"][
+                            augmented_statement["premise_id"]
+                        ],
+                        "stance": pattern_match["stance"],
+                        "validation": validated_statement["validation"],
+                        "reasoning": validated_statement["reasoning"],
+                    },
+                }
+            )
 
     with output_path.open("wb", encoding="utf-8") as fp:
         fp.write(orjson.dumps(export_data))
