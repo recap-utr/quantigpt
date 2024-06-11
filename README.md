@@ -33,3 +33,9 @@ poetry run python -m quantigpt predict-validations data/pattern-matches-$CORPUS.
 ```shell
 poetry run python -m quantigpt export-labelstudio data/pattern-matches-$CORPUS.json data/augmented-statements-$CORPUS.json data/predicted-validations-$CORPUS.json data/labelstudio-$CORPUS.json
 ```
+
+## Universal Data Tool Export
+
+```shell
+poetry run python -m quantigpt export-udt data/pattern-matches-$CORPUS.json data/augmented-statements-$CORPUS.json data/predicted-validations-$CORPUS.json data/udt-$CORPUS.json
+```

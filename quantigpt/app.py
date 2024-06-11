@@ -585,23 +585,24 @@ def export_labelstudio(
                 {
                     # "id": id,
                     "data": {
+                        "corpus_id": id,
                         "formatted_data": f"""
-    <p><strong>Claim:</strong> {pattern_match['claim']}</p>
-    <p><strong>Premise:</strong> {pattern_match['premise_sentences'][augmented_statement['premise_id']]}</p>
-    <p><strong>Stance:</strong> {pattern_match['stance']}</p>
-    """.strip(),
+<p><strong>Claim:</strong> {pattern_match['claim']}</p>
+<p><strong>Premise:</strong> {pattern_match['premise_sentences'][augmented_statement['premise_id']]}</p>
+<p><strong>Stance:</strong> {pattern_match['stance']}</p>
+""".strip(),
                         "formatted_statement": f"""
-    <p><strong>{prettify_prediction(augmented_statement)}</strong></p>
-    <p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
-    <p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
-    <p><strong>Trait:</strong> {augmented_statement['trait']}</p>
-    <p><strong>Operator:</strong> {augmented_statement['operator']}</p>
-    <p><strong>Quantity:</strong> {augmented_statement['quantity']}</p>
-    """.strip(),
+<p><strong>{prettify_prediction(augmented_statement)}</strong></p>
+<p><strong>Entity 1:</strong> {augmented_statement['entity_1']}</p>
+<p><strong>Entity 2:</strong> {augmented_statement['entity_2']}</p>
+<p><strong>Trait:</strong> {augmented_statement['trait']}</p>
+<p><strong>Operator:</strong> {augmented_statement['operator']}</p>
+<p><strong>Quantity:</strong> {augmented_statement['quantity']}</p>
+""".strip(),
                         "formatted_validation": f"""
-    <p><strong>Validation:</strong> {validated_statement['validation']}</p>
-    <p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
-    """.strip(),
+<p><strong>Validation:</strong> {validated_statement['validation']}</p>
+<p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
+""".strip(),
                         "entity_1": augmented_statement["entity_1"],
                         "entity_2": augmented_statement["entity_2"],
                         "trait": augmented_statement["trait"],
@@ -617,6 +618,137 @@ def export_labelstudio(
                     },
                 }
             )
+
+    with output_path.open("wb") as fp:
+        fp.write(orjson.dumps(export_data))
+
+
+@app.command()
+def export_udt(
+    pattern_matches_path: Path,
+    augmented_statements_path: Path,
+    predicted_validations_path: Path,
+    output_path: Path,
+):
+    assert pattern_matches_path.suffix == ".json"
+    assert output_path.suffix == ".json"
+
+    pattern_matches: Datasets = orjson.loads(pattern_matches_path.read_bytes())
+    augmented_datasets: dict[str, Predictions] = orjson.loads(
+        augmented_statements_path.read_bytes()
+    )
+    validated_datasets: dict[str, Predictions] = orjson.loads(
+        predicted_validations_path.read_bytes()
+    )
+    samples: list[dict[str, Any]] = []
+
+    for id, validated_statements in validated_datasets.items():
+        pattern_match = pattern_matches[id]
+        augmented_statements = augmented_datasets[id]
+
+        assert len(augmented_statements) == len(validated_statements)
+
+        for augmented_statement, validated_statement in zip(
+            augmented_statements, validated_statements
+        ):
+            samples.append(
+                {
+                    "markdown": f"""
+## Original Data
+
+- **Claim:** {pattern_match['claim']}
+- **Premise:** {pattern_match['premise_sentences'][augmented_statement['premise_id']]}
+- **Stance:** {pattern_match['stance']}
+
+## Predicted Statement
+
+- **{prettify_prediction(augmented_statement)}**
+- **Entity 1:** {augmented_statement['entity_1']}
+- **Entity 2:** {augmented_statement['entity_2']}
+- **Trait:** {augmented_statement['trait']}
+- **Operator:** {augmented_statement['operator']}
+- **Quantity:** {augmented_statement['quantity']}
+
+## Predicted Validation
+
+- **Validation:** {validated_statement['validation']}
+- **Reasoning:** {validated_statement['reasoning']}
+""".strip(),
+                    # "preloadedAnnotation": {
+                    #     "entity_1": augmented_statement["entity_1"],
+                    #     "entity_2": augmented_statement["entity_2"],
+                    #     "trait": augmented_statement["trait"],
+                    #     "operator": augmented_statement["operator"],
+                    #     "quantity": str(augmented_statement["quantity"]),
+                    # },
+                },
+            )
+
+    export_data = {
+        "name": "QuantiGPT",
+        "interface": {
+            "type": "data_entry",
+            "surveyjs": {
+                "questions": [
+                    {
+                        "name": "statement_rating",
+                        "type": "radiogroup",
+                        "title": "Please rate the predicted statement",
+                        "choices": [
+                            "Correct",
+                            "Partly correct",
+                            "Incorrect",
+                            "Unknown",
+                        ],
+                    },
+                    {
+                        "name": "validation_rating",
+                        "type": "radiogroup",
+                        "title": "Please rate the predicted validation",
+                        "choices": [
+                            "Correct",
+                            "Partly correct",
+                            "Incorrect",
+                            "Unknown",
+                        ],
+                    },
+                    {
+                        "name": "corrected_statement",
+                        "type": "multipletext",
+                        "title": "Please fix the predicted statement (if necessary)",
+                        "items": [
+                            {"name": "entity_1", "title": "Entity 1"},
+                            {"name": "entity_2", "title": "Entity 2"},
+                            {"name": "trait", "title": "Trait"},
+                            {"name": "operator", "title": "Operator"},
+                            {"name": "quantity", "title": "Quantity"},
+                        ],
+                    },
+                    {
+                        "name": "corrected_validation",
+                        "type": "radiogroup",
+                        "title": "Please validate the corrected predictions manually",
+                        "choices": [
+                            "Valid",
+                            "Invalid",
+                            "Unknown",
+                        ],
+                    },
+                    {
+                        "name": "corrected_validation_source",
+                        "type": "text",
+                        "title": "Source for corrected validation",
+                    },
+                    {
+                        "name": "remarks",
+                        "type": "text",
+                        "title": "Notes and additional remarks",
+                    },
+                ]
+            },
+        },
+        "samples": samples,
+    }
 
     with output_path.open("wb") as fp:
         fp.write(orjson.dumps(export_data))
