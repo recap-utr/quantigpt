@@ -1,7 +1,6 @@
 import asyncio
 import json
 import random
-import time
 from pathlib import Path
 from typing import Annotated, Any, Mapping, Optional, cast
 
@@ -17,7 +16,7 @@ from openai.types.chat import ChatCompletionMessage
 from openai.types.chat import ChatCompletionMessageParam as ChatMessage
 from openai.types.chat.completion_create_params import Function, FunctionCall
 from rank_bm25 import BM25Okapi
-from tqdm import tqdm
+from rich.progress import track
 
 encoder = tiktoken.get_encoding("cl100k_base")
 
@@ -93,7 +92,7 @@ def prettify_prediction(prediction: Prediction | None) -> str:
 def augment_statements(
     predicted_statements_path: Path,
     output_path: Path,
-    checkpoints_path: Path = Path("data/validate-checkpoints.log"),
+    checkpoints_path: Path = Path("data/augmented-statements.log"),
 ) -> None:
     # init
     count_tableId = 0
@@ -102,20 +101,26 @@ def augment_statements(
 
     if checkpoints_path.exists():
         with checkpoints_path.open("r", encoding="utf-8") as fp:
-            checkpoints_set = set(fp.readlines())
+            checkpoints_set = set(fp.read().splitlines())
+
+    print(f"Loaded {len(checkpoints_set)} checkpoints")
+    print(checkpoints_set)
 
     with predicted_statements_path.open("r", encoding="utf-8") as fp:
-        data = orjson.loads(fp.read())
+        predicted_statements = orjson.loads(fp.read())
 
     # iterate each argument
-    for arg_id in tqdm(data, desc="arg_id"):
+    for arg_id, predicted_premise_statements in track(predicted_statements.items()):
         # update checkpoints
         if arg_id in checkpoints_set:
+            print(f"Skipping {arg_id}")
             continue
+
+        print(f"Processing {arg_id}")
 
         map_argId_premise[arg_id] = []
 
-        for premise in data[arg_id]:
+        for premise in predicted_premise_statements:
             # extract data
             premise_id = premise["premise_id"]
             entity_1 = premise["entity_1"]
@@ -129,10 +134,6 @@ def augment_statements(
             node_premise_with_source.update(premise)
             node_premise_with_source["results"] = []
 
-            # sleep
-            time.sleep(60)
-            random_sleep_interval = random.randint(50, 60)
-
             # identify Wikipedia pages by Google search
             google_search_string = f"{entity_1} {trait} {quantity} times {operator} than {entity_2} site:en.wikipedia.org"
             node_premise_with_source["google_search_string"] = google_search_string
@@ -140,13 +141,12 @@ def augment_statements(
             for result in search(
                 google_search_string,
                 lang="en",
-                sleep_interval=random_sleep_interval,
-                timeout=120,
+                sleep_interval=random.randint(20, 40),
+                timeout=60,
                 advanced=True,
                 num_results=10,
             ):
-                url = result.url
-                url = cast(str, url)
+                url = cast(str, result.url)
 
                 snippet_title = result.title
                 snippet_description = result.description
@@ -453,6 +453,7 @@ The goal is to validate the extracted quantity statement based on the provided c
 ## Input
 
 You will be provided with the extracted quantity statement, the claim, the premise, their stance, the web search string, and the Wikipedia search results.
+A quantity value of `1.0` acts as the reference point and the value `0.0` indicates that no meaningful quantity could be extracted.
 The tables have been extracted in their HTML representation.
 Only the given information shall be used to validate the quantity statement.
 
@@ -469,26 +470,31 @@ If no data is available for the queried validation, respond with `unknown`.
     for statement in augmented_dataset:
         for result in statement["results"]:
             if "en.wikipedia.org" in result["url"]:
-                new_wiki_results = [
-                    *wiki_results,
-                    {
-                        "url": result["url"],
-                        "title": result["title"],
-                        "google_snippet_description": result[
-                            "google_snippet_description"
-                        ],
-                        "summary": result["summary"],
-                        "short_description": result["short_description"],
-                        "context_found_by_snippet": result["context_found_by_snippet"],
-                        "tables": [
-                            table["wiki_table"] for table in result["wiki_tables"]
-                        ],
-                    },
+                wiki_result = {
+                    "url": result["url"],
+                    "title": result["title"],
+                    "google_snippet_description": result["google_snippet_description"],
+                    "summary": result["summary"],
+                    "short_description": result["short_description"],
+                    "context_found_by_snippet": result["context_found_by_snippet"],
+                    "tables": [],
+                }
+
+                tables: list[str] = [
+                    entry["wiki_table"] for entry in result["wiki_tables"]
                 ]
 
-                # TODO: Document the limitation of wiki tables to 50000 tokens
-                if token_length(orjson.dumps(new_wiki_results).decode()) < 50000:
-                    wiki_results = new_wiki_results
+                while (
+                    token_length(orjson.dumps(wiki_result).decode()) < 10000 and tables
+                ):
+                    wiki_result["tables"].append(tables.pop(0))
+
+                # If the object is not empty, then the last table should not be added since it would exceed the token limit
+                if tables:
+                    wiki_result["tables"].pop()
+                    print(f"Truncated {len(tables) + 1} tables for url {result['url']}")
+
+                wiki_results.append(wiki_result)
 
         user_prompt = orjson.dumps(
             {
