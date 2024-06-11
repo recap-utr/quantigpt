@@ -14,8 +14,11 @@
         style="border-top: 1px solid black; padding-top: 10px; padding-bottom: 10px">
         <View className="flexItem" style="border-right: 1px solid black;">
             <Header value="Predicted quantitative statement" />
+            <Header
+                value="A quantity of 1.0 is the reference value, a value of 0.0 means that no meaningful quantity was found. "
+                size="6" />
             <HyperText name="formatted-statement" value="$formatted_statement" />
-            <Header value="Please rate the predicted statement" />
+            <Header value="1. Please rate the predicted statement." />
             <Choices required="true" name="statement-rating" toName="formatted-statement"
                 showInline="true"
                 choice="single-radio">
@@ -28,7 +31,7 @@
         <View className="flexItem">
             <Header value="Predicted validation" />
             <HyperText name="formatted-validation" value="$formatted_validation" />
-            <Header value="Please rate the predicted validation" />
+            <Header value="2. Please rate the predicted validation." />
             <Choices required="true" name="validation-rating" toName="formatted-validation"
                 showInline="true"
                 choice="single-radio">
@@ -42,7 +45,7 @@
     <View className="flexContainer"
         style="border-top: 1px solid black; padding-top: 10px; padding-bottom: 10px">
         <View className="flexItem" style="border-right: 1px solid black;">
-            <Header value="Please fix the predicted statement (if necessary)" />
+            <Header value="3. Please fix the predicted statement (if necessary)." />
             <Header value="Entity 1" size="5" />
             <TextArea required="true" name="corrected-entity-1" toName="formatted-statement"
                 value="$entity_1" />
@@ -60,7 +63,10 @@
                 value="$quantity" />
         </View>
         <View className="flexItem">
-            <Header value="Please validate the corrected predictions manually" />
+            <Header value="4. Please validate the corrected predictions manually." />
+            <Header
+                value="Only use Wikipedia as a source by adding 'site:en.wikipedia.org' to your search query."
+                size="6" />
             <Header value="Decision" size="5" />
             <Choices required="true" name="corrected-validation" toName="formatted-validation"
                 showInline="true"
@@ -69,13 +75,16 @@
                 <Choice value="Invalid" />
                 <Choice value="Unknown" />
             </Choices>
-            <Header value="Source/Reason" size="5" />
-            <TextArea required="true" name="corrected-validation-explanation"
+            <Header value="Source (Wikipedia URL)" size="5" />
+            <TextArea required="true" name="corrected-validation-source"
+                toName="formatted-validation" />
+            <Header value="Reason" size="5" />
+            <TextArea required="true" name="corrected-validation-reasoning"
                 toName="formatted-validation" />
         </View>
     </View>
     <View style="border-top: 1px solid black; padding-top: 10px; padding-bottom: 10px">
-        <Header value="Additional remarks" />
+        <Header value="Notes and additional remarks" />
         <TextArea name="notes" toName="formatted-data" />
     </View>
 </View>
