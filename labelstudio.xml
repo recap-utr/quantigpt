@@ -75,7 +75,8 @@
                 <Choice value="Invalid" />
                 <Choice value="Unknown" />
             </Choices>
-            <Header value="Source (Wikipedia URL)" size="5" />
+            <Header value="Source (Wikipedia URL, if decision is 'unknown' insert 'None' here)"
+                size="5" />
             <TextArea required="true" name="corrected-validation-source"
                 toName="formatted-validation" />
             <Header value="Reason" size="5" />
