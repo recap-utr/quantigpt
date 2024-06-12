@@ -2,7 +2,7 @@ import asyncio
 import json
 import random
 from pathlib import Path
-from typing import Annotated, Any, Mapping, Optional, cast
+from typing import Annotated, Any, Awaitable, Mapping, Optional, TypeVar, cast
 
 import httpx
 import openai
@@ -55,6 +55,21 @@ operator_map: dict[str, str] = {
     "greater_or_equal": ">=",
     "less_or_equal": "<=",
 }
+
+_T = TypeVar("_T")
+
+
+async def semaphore_gather(*coros: Awaitable[_T], limit: int) -> list[_T]:
+    """https://stackoverflow.com/a/60004447"""
+    semaphore = asyncio.Semaphore(limit)
+
+    async def _wrap_coro(coro):
+        async with semaphore:
+            return await coro
+
+    return await asyncio.gather(
+        *(_wrap_coro(coro) for coro in coros), return_exceptions=False
+    )
 
 
 @app.command()
@@ -315,11 +330,12 @@ async def _predict_statements_wrapper(
         schema = orjson.loads(fp.read())
 
     return dict(
-        await asyncio.gather(
+        await semaphore_gather(
             *(
                 _predict_statements(id, dataset, client, model, schema)
                 for id, dataset in datasets.items()
-            )
+            ),
+            limit=10,
         )
     )
 
@@ -431,7 +447,7 @@ async def _predict_validations_wrapper(
         schema = orjson.loads(fp.read())
 
     return dict(
-        await asyncio.gather(
+        await semaphore_gather(
             *(
                 _predict_validation(
                     id,
@@ -442,7 +458,8 @@ async def _predict_validations_wrapper(
                     schema,
                 )
                 for id, augmented_dataset in augmented_statements.items()
-            )
+            ),
+            limit=10,
         )
     )
 
