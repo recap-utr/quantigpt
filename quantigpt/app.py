@@ -92,6 +92,9 @@ def prettify_prediction(prediction: Prediction | None) -> str:
 def augment_statements(
     predicted_statements_path: Path,
     output_path: Path,
+    skip_ids: Annotated[
+        list[str], typer.Option(..., "--skip-id", default_factory=list)
+    ],
     checkpoints_path: Path = Path("data/augmented-statements.log"),
 ) -> None:
     # init
@@ -104,7 +107,6 @@ def augment_statements(
             checkpoints_set = set(fp.read().splitlines())
 
     print(f"Loaded {len(checkpoints_set)} checkpoints")
-    print(checkpoints_set)
 
     with predicted_statements_path.open("r", encoding="utf-8") as fp:
         predicted_statements = orjson.loads(fp.read())
@@ -112,7 +114,7 @@ def augment_statements(
     # iterate each argument
     for arg_id, predicted_premise_statements in track(predicted_statements.items()):
         # update checkpoints
-        if arg_id in checkpoints_set:
+        if arg_id in checkpoints_set or arg_id in skip_ids:
             print(f"Skipping {arg_id}")
             continue
 
