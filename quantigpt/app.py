@@ -150,6 +150,9 @@ def augment_statements(
             ):
                 url = cast(str, result.url)
 
+                if not url.startswith("https://en.wikipedia.org/wiki/"):
+                    continue
+
                 snippet_title = result.title
                 snippet_description = result.description
 
@@ -471,7 +474,7 @@ If no data is available for the queried validation, respond with `unknown`.
 
     for statement in augmented_dataset:
         for result in statement["results"]:
-            if "en.wikipedia.org" in result["url"]:
+            if result["url"].startswith("https://en.wikipedia.org/wiki/"):
                 wiki_result = {
                     "url": result["url"],
                     "title": result["title"],
