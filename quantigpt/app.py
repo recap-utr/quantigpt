@@ -594,6 +594,12 @@ def export_labelstudio(
         for augmented_statement, validated_statement in zip(
             augmented_statements, validated_statements
         ):
+            wiki_urls = "\n".join(
+                f"<li><a href='{result['url']}' target='_blank'>{result['title']}</a>: {result['short_description']}</li>"
+                for result in augmented_statement["results"]
+                if result["url"].startswith("https://en.wikipedia.org/wiki/")
+            )
+
             export_data.append(
                 {
                     # "id": id,
@@ -615,6 +621,10 @@ def export_labelstudio(
                         "formatted_validation": f"""
 <p><strong>Validation:</strong> {validated_statement['validation']}</p>
 <p><strong>Reasoning:</strong> {validated_statement['reasoning']}</p>
+<p><strong>Wikipedia sources:</strong></p>
+<ul>
+{wiki_urls}
+</ul>
 """.strip(),
                         "entity_1": augmented_statement["entity_1"],
                         "entity_2": augmented_statement["entity_2"],
