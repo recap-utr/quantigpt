@@ -474,9 +474,11 @@ If no data is available for the queried validation, respond with `unknown`.
                     "url": result["url"],
                     "title": result["title"],
                     "google_snippet_description": result["google_snippet_description"],
-                    "summary": result["summary"],
                     "short_description": result["short_description"],
-                    "context_found_by_snippet": result["context_found_by_snippet"],
+                    "summary": result["summary"][:10000],
+                    "context_found_by_snippet": result["context_found_by_snippet"][
+                        :10000
+                    ],
                     "tables": [],
                 }
 
