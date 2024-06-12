@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 from typing import Annotated, Any, Mapping, Optional, cast
 
+import httpx
 import openai
 import orjson
 import requests
@@ -26,6 +27,18 @@ def token_length(text: str) -> int:
 
 
 random.seed(42)
+
+
+def init_openai() -> openai.AsyncOpenAI:
+    return openai.AsyncOpenAI(
+        http_client=httpx.AsyncClient(
+            http2=True,
+            timeout=httpx.Timeout(timeout=120, connect=5),
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        ),
+        max_retries=20,
+    )
+
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
@@ -296,7 +309,7 @@ def predict_statements(
 async def _predict_statements_wrapper(
     datasets: Datasets, model: str
 ) -> Mapping[str, Predictions]:
-    client = openai.AsyncOpenAI()
+    client = init_openai()
 
     with Path("./predict_statements.json").open("r", encoding="utf-8") as fp:
         schema = orjson.loads(fp.read())
@@ -412,7 +425,7 @@ async def _predict_validations_wrapper(
     augmented_statements: Mapping[str, Predictions],
     model: str,
 ) -> Mapping[str, Predictions]:
-    client = openai.AsyncOpenAI()
+    client = init_openai()
 
     with Path("./predict_validation.json").open("r", encoding="utf-8") as fp:
         schema = orjson.loads(fp.read())
