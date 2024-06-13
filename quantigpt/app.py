@@ -296,7 +296,7 @@ def predict_statements(
     output_path: Path,
     ids: Annotated[list[str], typer.Option(..., "--id", default_factory=list)],
     sample_size: Optional[int] = None,
-    skip_first: Optional[int] = None,
+    skip_first: int = 0,
     model: str = "gpt-4o-2024-05-13",
 ):
     assert not (ids and sample_size)
@@ -309,8 +309,14 @@ def predict_statements(
     dataset_ids = list(datasets.keys())
     random.shuffle(dataset_ids)
 
-    if sample_size:
-        ids = random.sample(dataset_ids, sample_size)
+    # If `skip_first` would be applied first, the order of the dataset would be changed
+    if sample_size and sample_size + skip_first < len(dataset_ids):
+        ids = random.sample(dataset_ids, sample_size + skip_first)
+    else:
+        ids = random.sample(dataset_ids, len(dataset_ids))
+
+    if skip_first:
+        ids = ids[skip_first:]
 
     if ids:
         datasets = {k: v for k, v in datasets.items() if k in ids}
